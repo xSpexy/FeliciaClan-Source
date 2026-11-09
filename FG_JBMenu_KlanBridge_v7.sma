@@ -1408,6 +1408,18 @@ public CmdSay(id)
     if(!text[0])
         return PLUGIN_HANDLED;
 
+    // Quick access to the raffle hub; no dependency on menu page navigation.
+    if(equali(text, "/cekilis") || equali(text, "/çekiliş"))
+    {
+        if(!CanUseJBMenu(id, true))
+            return PLUGIN_HANDLED;
+        if(g_iUID[id] <= 0 || !g_bProfileLoaded[id] || g_bGuestMode[id])
+            ShowAccountMenu(id);
+        else
+            RaffleShowHub(id);
+        return PLUGIN_HANDLED;
+    }
+
     if(g_bQuizActive && g_bQuizInfo && g_iQuizQuestion >= 0)
     {
         new normalized[192], correct[128];
@@ -1707,6 +1719,7 @@ ShowMainMenu(id)
     else
         FC_MenuAddItemCB(menu, "\wAna Market", "1", cbMainMarket);
     FC_MenuAddItem(menu, "\wMarketler", "2");
+    FC_MenuAddItem(menu, "wÇekiliş Merkezi", "19");
     FC_MenuAddItem(menu, "\wMeslek Sistemi", "5");
     FC_MenuAddItem(menu, "\wOdul & Gorev Merkezi", "6");
     FC_MenuAddItem(menu, "\wKasa Sistemi", "7");
@@ -1720,7 +1733,6 @@ ShowMainMenu(id)
     FC_MenuAddItem(menu, "\wBilgiler Menusu", "13");
     FC_MenuAddItem(menu, "\wBonus Menü", "16");
     FC_MenuAddItem(menu, "\wKlan Sistemi", "17");
-    FC_MenuAddItem(menu, "\wÇekiliş Merkezi", "19");
 
     if(HasRole(id, ROLE_MANAGER))
         FC_MenuAddItem(menu, "\wYonetici Menusu", "14");
