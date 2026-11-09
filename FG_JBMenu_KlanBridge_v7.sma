@@ -753,6 +753,7 @@ new g_szRaffleWinnerName[FC_RAFFLE_MAX][FC_RAFFLE_NAME_LEN];
 new bool:g_bRaffleRewardDelivered[FC_RAFFLE_MAX];
 
 new g_iRaffleBackPage[33];
+new g_iRaffleReturnMode[33];
 new g_iRaffleDraftReward[33];
 new g_iRaffleDraftAmount[33];
 new g_iRaffleDraftCosmetic[33];
@@ -2269,7 +2270,11 @@ public H_RaffleActiveList(id, menu, item)
     menu_item_getinfo(menu, item, access, info, charsmax(info), name, charsmax(name), cb);
     new raffleId = str_to_num(info);
     menu_destroy(menu);
-    if(raffleId > 0) RaffleShowDetail(id, raffleId);
+    if(raffleId > 0)
+    {
+        g_iRaffleReturnMode[id] = 1;
+        RaffleShowDetail(id, raffleId);
+    }
     else RaffleShowActiveList(id);
     return PLUGIN_HANDLED;
 }
@@ -2304,7 +2309,11 @@ public H_RaffleCompletedList(id, menu, item)
     menu_item_getinfo(menu, item, access, info, charsmax(info), name, charsmax(name), cb);
     new raffleId = str_to_num(info);
     menu_destroy(menu);
-    if(raffleId > 0) RaffleShowDetail(id, raffleId);
+    if(raffleId > 0)
+    {
+        g_iRaffleReturnMode[id] = 2;
+        RaffleShowDetail(id, raffleId);
+    }
     else RaffleShowCompletedList(id);
     return PLUGIN_HANDLED;
 }
@@ -2343,7 +2352,8 @@ public H_RaffleDetail(id, menu, item)
     if(item == MENU_EXIT)
     {
         menu_destroy(menu);
-        RaffleShowActiveList(id);
+        if(g_iRaffleReturnMode[id] == 2) RaffleShowCompletedList(id);
+        else RaffleShowActiveList(id);
         return PLUGIN_HANDLED;
     }
     new info[8], name[64], access, cb;
@@ -2578,7 +2588,7 @@ public H_RaffleParticipation(id, menu, item)
     menu_destroy(menu);
     if(raffleId > 0)
     {
-        g_iRaffleBackPage[id] = 2;
+        g_iRaffleReturnMode[id] = 4;
         RaffleShowParticipants(id, raffleId);
     }
     else RaffleShowParticipationList(id);
@@ -2610,7 +2620,12 @@ RaffleShowManagerTools(id, raffleId)
             FC_MenuAddItem(menu, "\dCekilisi Bitir (katilimci yok)", "0");
     }
     else if(g_iRaffleWinnerUID[index] > 0)
-        FC_MenuAddItem(menu, "\yKazanan: %s", "0");
+    {
+        new winnerLine[128];
+        formatex(winnerLine, charsmax(winnerLine), "\yKazanan: \w%s \d(UID: %d)",
+            g_szRaffleWinnerName[index], g_iRaffleWinnerUID[index]);
+        FC_MenuAddItem(menu, winnerLine, "0");
+    }
     else
         FC_MenuAddItem(menu, "\dKatilim olmadan kapandi.", "0");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
@@ -2636,7 +2651,7 @@ public H_RaffleManagerTools(id, menu, item)
     menu_destroy(menu);
     if(key == 1)
     {
-        g_iRaffleBackPage[id] = 1;
+        g_iRaffleReturnMode[id] = 3;
         RaffleShowParticipants(id, raffleId);
     }
     else if(key == 2)
@@ -2650,9 +2665,10 @@ RaffleShowParticipants(id, raffleId)
     if(!RaffleRequireManager(id)) return;
     new index = RaffleFindByID(raffleId);
     if(index < 0) return;
-    new title[192], line[96], info[16];
-    formatex(title, charsmax(title), "\w%s^n\dKatilimci sayisi: \y%d",
-        g_szRaffleTitle[index], g_iRaffleParticipantCount[index]);
+    new title[256], line[96], info[16], collectedTL, collectedCoin;
+    RaffleGetCollected(index, collectedTL, collectedCoin);
+    formatex(title, charsmax(title), "\w%s^n\dKatilimci: \y%d \d| Toplanan: \w%d TL \d/ \y%d Coin",
+        g_szRaffleTitle[index], g_iRaffleParticipantCount[index], collectedTL, collectedCoin);
     new menu = FC_MenuCreate(title, "H_RaffleParticipants");
     for(new p; p < g_iRaffleParticipantCount[index]; p++)
     {
@@ -2677,7 +2693,7 @@ public H_RaffleParticipants(id, menu, item)
     if(item == MENU_EXIT)
     {
         menu_destroy(menu);
-        if(g_iRaffleBackPage[id] == 1)
+        if(g_iRaffleReturnMode[id] == 3)
             RaffleShowManagerTools(id, g_iRaffleBackPage[id]);
         else
             RaffleShowManager(id);
