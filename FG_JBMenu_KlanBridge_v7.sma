@@ -1924,8 +1924,8 @@ stock RaffleLoadAll()
         new i = id - 1, field[32], data[32];
         g_bRaffleActive[i] = bool:RaffleReadInt(id, "active", 0);
         g_iRaffleCreatorUID[i] = RaffleReadInt(id, "creator_uid", 0);
-        RaffleReadString(id, "creator_name", g_szRaffleCreator[i], charsmax(g_szRaffleCreator[]));
-        RaffleReadString(id, "title", g_szRaffleTitle[i], charsmax(g_szRaffleTitle[]));
+        RaffleReadString(id, "creator_name", g_szRaffleCreator[i], FC_RAFFLE_NAME_LEN - 1);
+        RaffleReadString(id, "title", g_szRaffleTitle[i], FC_RAFFLE_TITLE_LEN - 1);
         g_iRaffleRewardType[i] = RaffleReadInt(id, "reward_type", RF_REWARD_TL);
         g_iRaffleRewardAmount[i] = RaffleReadInt(id, "reward_amount", 0);
         g_iRaffleRewardCosmetic[i] = RaffleReadInt(id, "reward_cos", -1);
@@ -1938,7 +1938,7 @@ stock RaffleLoadAll()
         g_iRaffleFinishedAt[i] = RaffleReadInt(id, "finished_at", 0);
         g_iRaffleParticipantCount[i] = clamp(RaffleReadInt(id, "participant_count", 0), 0, FC_RAFFLE_PARTICIPANTS);
         g_iRaffleWinnerUID[i] = RaffleReadInt(id, "winner_uid", 0);
-        RaffleReadString(id, "winner_name", g_szRaffleWinnerName[i], charsmax(g_szRaffleWinnerName[]));
+        RaffleReadString(id, "winner_name", g_szRaffleWinnerName[i], FC_RAFFLE_NAME_LEN - 1);
         g_bRaffleRewardDelivered[i] = bool:RaffleReadInt(id, "reward_delivered", 0);
 
         for(new p; p < g_iRaffleParticipantCount[i]; p++)
@@ -1948,7 +1948,7 @@ stock RaffleLoadAll()
             RaffleReadString(id, field, data, charsmax(data));
             g_iRaffleParticipantUID[i][p] = str_to_num(data);
             formatex(field, charsmax(field), "p%d_name", p);
-            RaffleReadString(id, field, g_szRaffleParticipantName[i][p], charsmax(g_szRaffleParticipantName[][]));
+            RaffleReadString(id, field, g_szRaffleParticipantName[i][p], FC_RAFFLE_NAME_LEN - 1);
         }
     }
     for(new id = 1; id <= g_iRaffleCount; id++)
@@ -2158,7 +2158,7 @@ stock RaffleFinish(raffleId)
     {
         new winnerPos = random_num(0, g_iRaffleParticipantCount[index] - 1);
         g_iRaffleWinnerUID[index] = g_iRaffleParticipantUID[index][winnerPos];
-        copy(g_szRaffleWinnerName[index], charsmax(g_szRaffleWinnerName[]),
+        copy(g_szRaffleWinnerName[index], FC_RAFFLE_NAME_LEN - 1,
             g_szRaffleParticipantName[index][winnerPos]);
     }
     RaffleSaveOne(raffleId);
@@ -2434,7 +2434,7 @@ RaffleJoin(id, raffleId)
     new pos = g_iRaffleParticipantCount[index], playerName[FC_RAFFLE_NAME_LEN];
     get_user_name(id, playerName, charsmax(playerName));
     g_iRaffleParticipantUID[index][pos] = g_iUID[id];
-    copy(g_szRaffleParticipantName[index][pos], charsmax(g_szRaffleParticipantName[][]), playerName);
+    copy(g_szRaffleParticipantName[index][pos], FC_RAFFLE_NAME_LEN - 1, playerName);
     g_iRaffleParticipantCount[index]++;
     RaffleSaveOne(raffleId);
 
@@ -2764,7 +2764,7 @@ RaffleCreateStart(id)
 public CmdRaffleName(id)
 {
     if(!RaffleRequireManager(id)) return PLUGIN_HANDLED;
-    read_args(g_szRaffleDraftTitle[id], charsmax(g_szRaffleDraftTitle[]));
+    read_args(g_szRaffleDraftTitle[id], FC_RAFFLE_TITLE_LEN - 1);
     remove_quotes(g_szRaffleDraftTitle[id]);
     trim(g_szRaffleDraftTitle[id]);
     if(!g_szRaffleDraftTitle[id][0])
@@ -3038,8 +3038,8 @@ RaffleCreateFinish(id)
     new raffleId = ++g_iRaffleCount, i = raffleId - 1;
     g_bRaffleActive[i] = true;
     g_iRaffleCreatorUID[i] = g_iUID[id];
-    get_user_name(id, g_szRaffleCreator[i], charsmax(g_szRaffleCreator[]));
-    copy(g_szRaffleTitle[i], charsmax(g_szRaffleTitle[]), g_szRaffleDraftTitle[id]);
+    get_user_name(id, g_szRaffleCreator[i], FC_RAFFLE_NAME_LEN - 1);
+    copy(g_szRaffleTitle[i], FC_RAFFLE_TITLE_LEN - 1, g_szRaffleDraftTitle[id]);
     g_iRaffleRewardType[i] = g_iRaffleDraftReward[id];
     g_iRaffleRewardAmount[i] = g_iRaffleDraftAmount[id];
     g_iRaffleRewardCosmetic[i] = g_iRaffleDraftCosmetic[id];
