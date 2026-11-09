@@ -2741,6 +2741,7 @@ public H_RaffleFinishConfirm(id, menu, item)
         Chat(id, "Cekilis tamamlandi ve kazanan secildi.");
     }
     RaffleShowManagerTools(id, raffleId);
+    return PLUGIN_HANDLED;
 }
 
 // ============================================================
