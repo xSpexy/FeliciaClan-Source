@@ -1719,7 +1719,7 @@ ShowMainMenu(id)
     else
         FC_MenuAddItemCB(menu, "\wAna Market", "1", cbMainMarket);
     FC_MenuAddItem(menu, "\wMarketler", "2");
-    FC_MenuAddItem(menu, "wÇekiliş Merkezi", "19");
+    FC_MenuAddItem(menu, "\wÇekiliş Merkezi", "19");
     FC_MenuAddItem(menu, "\wMeslek Sistemi", "5");
     FC_MenuAddItem(menu, "\wOdul & Gorev Merkezi", "6");
     FC_MenuAddItem(menu, "\wKasa Sistemi", "7");
