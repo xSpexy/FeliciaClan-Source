@@ -622,6 +622,7 @@ new g_iLeaseBase;new Float:g_flLeaseBase;
 new g_iSelectedCos[33][COS_KIND_COUNT];
 new g_iBaseKnife[33]; // 0 T, 1 CT, 2 -2 TL #1, 3 -2 TL #2, 4 Testere
 new bool:g_bSpecialKnifeBought[33];
+new bool:g_bMainAdUsed[33]; // Ana market reklaminin bu round/life icinde kullanilma durumu
 new bool:g_bDoubleDamage[33];
 new bool:g_bDamageShield[33];
 new bool:g_bSilentSteps[33];
@@ -664,6 +665,7 @@ new g_iAirJumps[33];
 new g_iAirJumpLimit[33]; // Normal/Isyan/Misafir: 2X, Prime/Yonetici: 3X
 new g_iDisplayTagMode[33];
 new bool:g_bClanTagEnabled[33];
+new bool:g_bRankTagEnabled[33];
 new g_iClanBridgePlugin = -1;
 new g_iClanInfoFunction = -1;
 new g_iClanMenuFunction = -1;
@@ -1141,7 +1143,7 @@ public pUserExit(id)
     CancelSpawnWork(id);g_bProfileLoaded[id]=false;
     g_iProfession[id]=PROF_NONE;g_iProfessionApplied[id]=-1;
     g_bProfessionChosenRound[id]=false;
-    g_iUID[id] = 0;g_iHudTeam[id]=-1;g_iRentalMenu[id]=-1;g_bClanTagEnabled[id]=false;g_bClanTagEnabled[id]=false;
+    g_iUID[id] = 0;g_iHudTeam[id]=-1;g_iRentalMenu[id]=-1;g_bClanTagEnabled[id]=false;g_bRankTagEnabled[id]=true;
     g_bInfoHudShown[id]=false;g_bRentalRefresh[id]=false;
     g_iTL[id] = 0;
     g_iCoin[id] = 0;
@@ -1171,6 +1173,7 @@ ResetRuntime(id)
     g_flPreviewEnd[id]=g_flPreviewNextFX[id]=0.0;
     g_iBaseKnife[id] = -1;
     g_bSpecialKnifeBought[id] = false;
+    g_bMainAdUsed[id] = false;
     g_bDoubleDamage[id] = false;
     g_bDamageShield[id] = false;
     g_bSilentSteps[id] = false;
@@ -1207,6 +1210,7 @@ ResetRuntime(id)
     g_iAirJumpLimit[id] = 1;
     g_iDisplayTagMode[id] = TAGMODE_AUTO;
     g_bClanTagEnabled[id] = false;
+    g_bRankTagEnabled[id] = true;
     g_iHudMode[id] = HUDMODE_FULL;
     g_bForceHud[id] = false;
     g_iCrateType[id] = -1;
@@ -1283,6 +1287,7 @@ LoadPlayer(id)
     g_bProfileLoaded[id]=true;
     g_iDisplayTagMode[id] = clamp(UIDGetInt(g_iUID[id], "display_tag_mode", TAGMODE_AUTO), TAGMODE_AUTO, TAGMODE_COUNT-1);
     g_bClanTagEnabled[id] = bool:UIDGetInt(g_iUID[id], "clan_tag_enabled", 0);
+    g_bRankTagEnabled[id] = bool:UIDGetInt(g_iUID[id], "rank_tag_enabled", 1);
     g_iHudMode[id] = clamp(UIDGetInt(g_iUID[id], "hud_mode", HUDMODE_FULL), HUDMODE_FULL, HUDMODE_COUNT-1);
 
     for(new i; i < COS_ITEM_COUNT; i++)
@@ -1351,6 +1356,7 @@ SavePlayer(id)
     UIDSetInt(g_iUID[id], "profession", g_iProfession[id]);
     UIDSetInt(g_iUID[id], "display_tag_mode", g_iDisplayTagMode[id]);
     UIDSetInt(g_iUID[id], "clan_tag_enabled", g_bClanTagEnabled[id]);
+    UIDSetInt(g_iUID[id], "rank_tag_enabled", g_bRankTagEnabled[id]);
     UIDSetInt(g_iUID[id], "hud_mode", g_iHudMode[id]);
 
     for(new i; i < COS_ITEM_COUNT; i++)
@@ -1690,7 +1696,14 @@ ShowMainMenu(id)
         new guestMenu = FC_MenuCreate(guestTitle, "H_Main");
         NoCTAddCellItem(id,guestMenu);
         new cbGuestMainMarket = menu_makecallback("CB_MainMarket");
-        FC_MenuAddItemCB(guestMenu, "\wAna Market", "1", cbGuestMainMarket);
+        new guestMarketLabel[64];
+        if(g_bSpecialKnifeBought[id] && g_bMainAdUsed[id])
+            copy(guestMarketLabel, charsmax(guestMarketLabel), "\dAna Market \r[kullandın]");
+        else if(g_bSpecialKnifeBought[id])
+            copy(guestMarketLabel, charsmax(guestMarketLabel), "\wAna Market \y[extra]");
+        else
+            copy(guestMarketLabel, charsmax(guestMarketLabel), "\wAna Market");
+        FC_MenuAddItemCB(guestMenu, guestMarketLabel, "1", cbGuestMainMarket);
         FC_MenuAddItem(guestMenu, "\wMarketler", "2");
         FC_MenuAddItem(guestMenu, "\wMeslek Sistemi", "5");
         FC_MenuAddItem(guestMenu, "\yHesap Sistemine Don", "15");
@@ -1711,7 +1724,14 @@ ShowMainMenu(id)
     NoCTAddCellItem(id,menu);
 
     new cbMainMarket = menu_makecallback("CB_MainMarket");
-    FC_MenuAddItemCB(menu, "\wAna Market", "1", cbMainMarket);
+    new mainMarketLabel[64];
+    if(g_bSpecialKnifeBought[id] && g_bMainAdUsed[id])
+        copy(mainMarketLabel, charsmax(mainMarketLabel), "\dAna Market \r[kullandın]");
+    else if(g_bSpecialKnifeBought[id])
+        copy(mainMarketLabel, charsmax(mainMarketLabel), "\wAna Market \y[extra]");
+    else
+        copy(mainMarketLabel, charsmax(mainMarketLabel), "\wAna Market");
+    FC_MenuAddItemCB(menu, mainMarketLabel, "1", cbMainMarket);
     FC_MenuAddItem(menu, "\wMarketler", "2");
     FC_MenuAddItem(menu, "\wÇekiliş Merkezi", "19");
     FC_MenuAddItem(menu, "\wMeslek Sistemi", "5");
@@ -1742,9 +1762,7 @@ ShowMainMenu(id)
 
 public CB_MainMarket(id, menu, item)
 {
-    // Keep Ana Market reachable so paid advertisement remains available
-    // after a special knife purchase in the current round.
-    return ITEM_ENABLED;
+    return (g_bSpecialKnifeBought[id] && g_bMainAdUsed[id]) ? ITEM_DISABLED : ITEM_ENABLED;
 }
 
 public H_Main(id, menu, item)
@@ -1769,16 +1787,7 @@ public H_Main(id, menu, item)
 
     switch(key)
     {
-        case 1:
-        {
-            if(g_bSpecialKnifeBought[id])
-            {
-                Chat(id, "Ana Marketi bu el zaten kullandin.");
-                ShowMainMenu(id);
-            }
-            else
-                ShowMainMarket(id);
-        }
+        case 1: ShowMainMarket(id);
         case 2: ShowStandardMarkets(id);
         case 3: ShowAttackMenu(id);
         case 4: ShowAmmoMenu(id);
@@ -3122,39 +3131,64 @@ ShowMainMarket(id)
     }
 
     new menu = FC_MenuCreate("\wAna Market", "H_MainMarket");
-    new line[192], itemName[64];
+    new line[192], itemName[64], price;
     new knifeCallback = menu_makecallback("CB_MainSpecialKnife");
-    new separatorCallback = menu_makecallback("CB_MainMarketSeparator");
+    new adCallback = menu_makecallback("CB_MainAdvertisement");
 
     CfgStr("MAIN_MINUS2_NAME", itemName, charsmax(itemName), "Fps Knife");
+    price = CfgInt("MAIN_MINUS2_TL", -2);
+    if(price > 0) price = CalcPrice(id, price);
     if(g_bSpecialKnifeBought[id])
         formatex(line, charsmax(line), "\d%s \w[Bu el kullanildi]", itemName);
+    else if(price < 0)
+        formatex(line, charsmax(line), "\w%s \d: \y+%d TL", itemName, -price);
+    else if(price == 0)
+        formatex(line, charsmax(line), "\w%s \d: \yUcretsiz", itemName);
     else
-        formatex(line, charsmax(line), "\w%s \d: \r%d \yTL", itemName, CfgInt("MAIN_MINUS2_TL", -2));
+        formatex(line, charsmax(line), "\w%s \d: \r%d \yTL", itemName, price);
     FC_MenuAddItemCB(menu, line, "2", knifeCallback);
 
     CfgStr("MAIN_MINUS2_2_NAME", itemName, charsmax(itemName), "Ekstra Fps Knife");
+    price = CfgInt("MAIN_MINUS2_2_TL", -2);
+    if(price > 0) price = CalcPrice(id, price);
     if(g_bSpecialKnifeBought[id])
         formatex(line, charsmax(line), "\d%s \w[Bu el kullanildi]", itemName);
+    else if(price < 0)
+        formatex(line, charsmax(line), "\w%s \d: \y+%d TL", itemName, -price);
+    else if(price == 0)
+        formatex(line, charsmax(line), "\w%s \d: \yUcretsiz", itemName);
     else
-        formatex(line, charsmax(line), "\w%s \d: \r%d \yTL", itemName, CfgInt("MAIN_MINUS2_2_TL", -2));
+        formatex(line, charsmax(line), "\w%s \d: \r%d \yTL", itemName, price);
     FC_MenuAddItemCB(menu, line, "3", knifeCallback);
 
     CfgStr("MAIN_SAW_NAME", itemName, charsmax(itemName), "Testere");
+    price = CfgInt("MAIN_SAW_TL", 50);
+    if(price > 0) price = CalcPrice(id, price);
     if(g_bSpecialKnifeBought[id])
         formatex(line, charsmax(line), "\d%s \w[Bu el kullanildi]", itemName);
+    else if(price < 0)
+        formatex(line, charsmax(line), "\w%s \d: \y+%d TL", itemName, -price);
+    else if(price == 0)
+        formatex(line, charsmax(line), "\w%s \d: \yUcretsiz", itemName);
     else
-        formatex(line, charsmax(line), "\w%s \d: \r%d \yTL", itemName, CalcPrice(id, CfgInt("MAIN_SAW_TL", 50)));
+        formatex(line, charsmax(line), "\w%s \d: \r%d \yTL", itemName, price);
     FC_MenuAddItemCB(menu, line, "4", knifeCallback);
-
-    FC_MenuAddItemCB(menu, "\d-------------------------", "0", separatorCallback);
 
     new adName[64];
     CfgStr("MAIN_AD_NAME", adName, charsmax(adName), "Reklam At");
-    formatex(line, charsmax(line), "\y%s \d: \r%d \yTL",
-        adName, max(0, CfgInt("MAIN_AD_TL", 3)));
-    FC_MenuAddItem(menu, line, "5");
+    price = CfgInt("MAIN_AD_TL", -3);
+    if(price > 0) price = CalcPrice(id, price);
 
+    if(g_bMainAdUsed[id])
+        formatex(line, charsmax(line), "^n\d%s \w[Kullanildi]", adName);
+    else if(price < 0)
+        formatex(line, charsmax(line), "^n\y%s \d: \y+%d TL", adName, -price);
+    else if(price == 0)
+        formatex(line, charsmax(line), "^n\y%s \d: \yUcretsiz", adName);
+    else
+        formatex(line, charsmax(line), "^n\y%s \d: \r%d \yTL", adName, price);
+
+    FC_MenuAddItemCB(menu, line, "5", adCallback);
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
 }
@@ -3164,9 +3198,9 @@ public CB_MainSpecialKnife(id, menu, item)
     return g_bSpecialKnifeBought[id] ? ITEM_DISABLED : ITEM_ENABLED;
 }
 
-public CB_MainMarketSeparator(id, menu, item)
+public CB_MainAdvertisement(id, menu, item)
 {
-    return ITEM_DISABLED;
+    return g_bMainAdUsed[id] ? ITEM_DISABLED : ITEM_ENABLED;
 }
 
 public H_MainMarket(id, menu, item)
@@ -3199,19 +3233,26 @@ public H_MainMarket(id, menu, item)
 
 BuyMainAdvertisement(id)
 {
-    if(!is_user_alive(id))
+    if(!is_user_alive(id) || g_bMainAdUsed[id])
         return;
 
-    new cost = max(0, CfgInt("MAIN_AD_TL", 3));
-    if(g_iTL[id] < cost)
+    new price = CfgInt("MAIN_AD_TL", -3);
+    if(price > 0)
+        price = CalcPrice(id, price);
+
+    if(price > 0 && g_iTL[id] < price)
     {
-        Chat(id, "Reklam icin yeterli TL yok. Gereken: ^3%d TL", cost);
+        Chat(id, "Reklam icin yeterli TL yok. Gereken: ^3%d TL", price);
         ShowMainMarket(id);
         return;
     }
 
-    g_iTL[id] -= cost;
-    FC_RecordTLSpend(id, cost);
+    // Pozitif deger TL keser, negatif deger oyuncuya TL kazandirir.
+    g_iTL[id] -= price;
+    if(price > 0)
+        FC_RecordTLSpend(id, price);
+
+    g_bMainAdUsed[id] = true;
     SavePlayer(id);
 
     new adText[256], playerName[32];
@@ -3224,7 +3265,14 @@ BuyMainAdvertisement(id)
     replace_all(adText, charsmax(adText), "{PLAYER}", playerName);
 
     client_print_color(0, print_team_default, "^3[FeliciaClan Reklam] ^1%s", adText);
-    Chat(id, "Reklamin yayinlandi. ^3-%d TL", cost);
+
+    if(price < 0)
+        Chat(id, "Reklamin yayinlandi. ^3+%d TL ^1kazandin. Bakiye: ^3%d TL", -price, g_iTL[id]);
+    else if(price > 0)
+        Chat(id, "Reklamin yayinlandi. ^3-%d TL ^1harcadin. Bakiye: ^3%d TL", price, g_iTL[id]);
+    else
+        Chat(id, "Reklamin ucretsiz yayinlandi.");
+
     ShowMainMarket(id);
 }
 
@@ -3268,7 +3316,8 @@ BuyMainKnife(id, knife)
     }
 
     g_iTL[id] -= price;
-    FC_RecordTLSpend(id, price);
+    if(price > 0)
+        FC_RecordTLSpend(id, price);
     g_iBaseKnife[id] = knife;
     g_bSpecialKnifeBought[id] = true;
 
@@ -3792,6 +3841,10 @@ ShowChatTagMenu(id)
         g_iDisplayTagMode[id] == TAGMODE_AUTO ? "\r[AKTIF]" : "\d[KAPALI]");
     FC_MenuAddItem(menu, line, "5");
 
+    formatex(line, charsmax(line), "\wRank Etiketini Kullan %s",
+        g_bRankTagEnabled[id] ? "\r[AKTIF]" : "\d[KAPALI]");
+    FC_MenuAddItem(menu, line, "7");
+
     new clanName[64], clanLevel = GetClanInfoFromPlugin(id, clanName, charsmax(clanName));
     if(clanLevel > 0 && clanName[0])
     {
@@ -3844,6 +3897,14 @@ public H_ChatTagMenu(id, menu, item)
                 SavePlayer(id);
                 Chat(id, "Klan etiketi: ^4%s", g_bClanTagEnabled[id] ? "Aktif" : "Kapali");
             }
+            ShowChatTagMenu(id);
+            return PLUGIN_HANDLED;
+        }
+        case 7:
+        {
+            g_bRankTagEnabled[id] = !g_bRankTagEnabled[id];
+            SavePlayer(id);
+            Chat(id, "Rank etiketi: ^4%s", g_bRankTagEnabled[id] ? "Aktif" : "Gizli");
             ShowChatTagMenu(id);
             return PLUGIN_HANDLED;
         }
@@ -5184,7 +5245,7 @@ HandleCustomChat(id, const message[], bool:teamOnly)
 
     new role[24],rank[48],rankTag[64],clanName[64],clanTag[80],name[32],out[191];
     GetChatRoleName(id,role,charsmax(role));
-    if(g_iUID[id]>0 && !g_bGuestMode[id]) {
+    if(g_iUID[id]>0 && !g_bGuestMode[id] && g_bRankTagEnabled[id]) {
         GetRankName(g_iRank[id],rank,charsmax(rank));
         formatex(rankTag,charsmax(rankTag),"^1[^3%s^1]",rank);
     }
@@ -7330,6 +7391,7 @@ public EventRoundStart()
             continue;
 
         g_bSpecialKnifeBought[id] = false;
+        g_bMainAdUsed[id] = false;
         g_bDoubleDamage[id] = false;
         g_bDamageShield[id] = false;
         g_bSilentSteps[id] = false;
@@ -7373,7 +7435,7 @@ public HC_Spawn_Post(id)
     if(HW_Player(id)) {
         // A revived player is a fresh life even while the active game owns UI.
         if(LibraryExists("fc_ctmenu",LibType_Library) && fc_ct_game_id()>0) g_bCTJoined[id]=true;
-        g_bSpecialKnifeBought[id]=g_bDoubleDamage[id]=g_bDamageShield[id]=false;
+        g_bSpecialKnifeBought[id]=g_bMainAdUsed[id]=g_bDoubleDamage[id]=g_bDamageShield[id]=false;
         g_bSilentSteps[id]=g_bVampire[id]=false;g_iAirJumps[id]=0;
         g_iBaseKnife[id]=get_member(id,m_iTeam)==TEAM_TERRORIST?0:get_member(id,m_iTeam)==TEAM_CT?1:-1;
         return;
@@ -7382,6 +7444,7 @@ public HC_Spawn_Post(id)
         return;
 
     g_bSpecialKnifeBought[id] = false;
+    g_bMainAdUsed[id] = false;
     g_bDoubleDamage[id] = false;
     g_bDamageShield[id] = false;
     g_bSilentSteps[id] = false;
@@ -7731,6 +7794,7 @@ public EventCosmeticTeamInfo()
 
     remove_task(id);
     g_bSpecialKnifeBought[id] = false;
+    g_bMainAdUsed[id] = false;
     switch(team)
     {
         case TEAM_TERRORIST: g_iBaseKnife[id] = 0;
