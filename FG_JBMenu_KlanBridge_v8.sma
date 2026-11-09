@@ -3179,14 +3179,17 @@ ShowMainMarket(id)
     price = CfgInt("MAIN_AD_TL", -3);
     if(price > 0) price = CalcPrice(id, price);
 
+    // Reklam, bicaklardan sonra yalnizca gorunur bir boslukla ayrilir.
+    menu_addblank(menu, 0);
+
     if(g_bMainAdUsed[id])
-        formatex(line, charsmax(line), "^n\d%s \w[Kullanildi]", adName);
+        formatex(line, charsmax(line), "\d%s \w[Kullanildi]", adName);
     else if(price < 0)
-        formatex(line, charsmax(line), "^n\y%s \d: \y+%d TL", adName, -price);
+        formatex(line, charsmax(line), "\w%s \d: \r+%d \yTL", adName, -price);
     else if(price == 0)
-        formatex(line, charsmax(line), "^n\y%s \d: \yUcretsiz", adName);
+        formatex(line, charsmax(line), "\w%s \d: \yUcretsiz", adName);
     else
-        formatex(line, charsmax(line), "^n\y%s \d: \r%d \yTL", adName, price);
+        formatex(line, charsmax(line), "\w%s \d: \r%d \yTL", adName, price);
 
     FC_MenuAddItemCB(menu, line, "5", adCallback);
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
@@ -3263,6 +3266,12 @@ BuyMainAdvertisement(id)
 
     get_user_name(id, playerName, charsmax(playerName));
     replace_all(adText, charsmax(adText), "{PLAYER}", playerName);
+
+    // INI'deki ^^1 / ^^3 / ^^4 iki karakterli yazimini SayText renk koduna cevir.
+    replace_all(adText, charsmax(adText), "^^1", "^1");
+    replace_all(adText, charsmax(adText), "^^2", "^2");
+    replace_all(adText, charsmax(adText), "^^3", "^3");
+    replace_all(adText, charsmax(adText), "^^4", "^4");
 
     client_print_color(0, print_team_default, "^3[FeliciaClan Reklam] ^1%s", adText);
 
