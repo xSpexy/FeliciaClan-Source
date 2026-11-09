@@ -1720,7 +1720,7 @@ ShowMainMenu(id)
     FC_MenuAddItem(menu, "\wBilgiler Menusu", "13");
     FC_MenuAddItem(menu, "\wBonus Menü", "16");
     FC_MenuAddItem(menu, "\wKlan Sistemi", "17");
-    FC_MenuAddItem(menu, "\wÇekiliş Merkezi", "18");
+    FC_MenuAddItem(menu, "\wÇekiliş Merkezi", "19");
 
     if(HasRole(id, ROLE_MANAGER))
         FC_MenuAddItem(menu, "\wYonetici Menusu", "14");
@@ -1823,7 +1823,7 @@ public H_Main(id, menu, item)
         case 15: ShowAccountMenu(id);
         case 16: ShowBonusMenu(id);
         case 17: OpenClanMenuFromJB(id);
-        case 18:
+        case 19:
         {
             if(g_iUID[id] <= 0 || !g_bProfileLoaded[id] || g_bGuestMode[id])
                 ShowAccountMenu(id);
