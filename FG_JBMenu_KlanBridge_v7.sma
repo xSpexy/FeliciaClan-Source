@@ -1720,7 +1720,7 @@ ShowMainMenu(id)
     FC_MenuAddItem(menu, "\wBilgiler Menusu", "13");
     FC_MenuAddItem(menu, "\wBonus Menü", "16");
     FC_MenuAddItem(menu, "\wKlan Sistemi", "17");
-    FC_MenuAddItem(menu, "\wCekilis Merkezi", "18");
+    FC_MenuAddItem(menu, "\wÇekiliş Merkezi", "18");
 
     if(HasRole(id, ROLE_MANAGER))
         FC_MenuAddItem(menu, "\wYonetici Menusu", "14");
@@ -2203,10 +2203,10 @@ RaffleShowHub(id)
         return;
     }
     new menu = FC_MenuCreate("\wCekilis Merkezi", "H_RaffleHub");
-    FC_MenuAddItem(menu, "\wAktif Cekilisler", "1");
-    FC_MenuAddItem(menu, "\wTamamlanmis Cekilisler", "2");
+    FC_MenuAddItem(menu, "\wAktif Çekilişler", "1");
+    FC_MenuAddItem(menu, "\wTamamlanmış Çekilişler", "2");
     if(RaffleIsManager(id))
-        FC_MenuAddItem(menu, "\yYonetici Cekilis Paneli", "3");
+        FC_MenuAddItem(menu, "\yYönetici Çekiliş Paneli", "3");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Ana Menu");
     menu_display(id, menu);
 }
@@ -2247,7 +2247,7 @@ RaffleShowActiveList(id)
     {
         if(!g_bRaffleActive[i]) continue;
         if(RaffleFindParticipant(i, g_iUID[id]) >= 0)
-            formatex(line, charsmax(line), "\w%s \y[Katildin]", g_szRaffleTitle[i]);
+            formatex(line, charsmax(line), "\w%s \y[Katıldın]", g_szRaffleTitle[i]);
         else
             formatex(line, charsmax(line), "\w%s", g_szRaffleTitle[i]);
         num_to_str(i + 1, info, charsmax(info));
@@ -2338,9 +2338,9 @@ RaffleShowDetail(id, raffleId)
     if(g_bRaffleActive[index])
     {
         if(RaffleFindParticipant(index, g_iUID[id]) >= 0)
-            FC_MenuAddItem(menu, "\dCekilise zaten katildiniz", "0");
+            FC_MenuAddItem(menu, "\dÇekilişe zaten katıldınız", "0");
         else
-            FC_MenuAddItem(menu, "\yCekilise Katil", "1");
+            FC_MenuAddItem(menu, "\yÇekilişe Katıl", "1");
     }
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_setprop(menu, MPROP_BACKNAME, "Geri");
@@ -2371,7 +2371,7 @@ RaffleShowJoinConfirm(id, raffleId)
     if(index < 0 || !g_bRaffleActive[index]) return;
     new fee[64], title[256];
     RaffleGetFeeText(index, fee, charsmax(fee));
-    formatex(title, charsmax(title), "\w%s^n\dKatilim ucreti: \y%s^n\dCekilise katilmak istediginize emin misiniz?",
+    formatex(title, charsmax(title), "\w%s^n\dKatilim ucreti: \y%s^n\dÇekilişe katılmak istediğinize emin misiniz?",
         g_szRaffleTitle[index], fee);
     new menu = FC_MenuCreate(title, "H_RaffleJoinConfirm");
     FC_MenuAddItem(menu, "\yEvet, katil", "1");
