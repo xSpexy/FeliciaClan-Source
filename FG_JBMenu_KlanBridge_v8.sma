@@ -1666,181 +1666,79 @@ public H_Account(id, menu, item)
             Chat(id, "Misafir moduna gectin. Coin, Prime ve IsyanTeam ozellikleri gizlendi.");
 
             if(is_user_alive(id) && get_member(id, m_iTeam) == TEAM_TERRORIST)
-                ShowMainMarket(id)
-{
-    if(!is_user_alive(id))
-    {
-        Chat(id, "Ana Market icin hayatta olmalisin.");
-        return;
+                ShowMainMarket(id);
+            else
+                ShowMainMenu(id);
+        }
     }
-
-    new menu = FC_MenuCreate("\wAna Market", "H_MainMarket");
-    new line[192], itemName[64];
-    new knifeCallback = menu_makecallback("CB_MainSpecialKnife");
-    new separatorCallback = menu_makecallback("CB_MainMarketSeparator");
-
-    CfgStr("MAIN_MINUS2_NAME", itemName, charsmax(itemName), "Fps Knife");
-    if(g_bSpecialKnifeBought[id])
-        formatex(line, charsmax(line), "\d%s \w[Bu el kullanildi]", itemName);
-    else
-        formatex(line, charsmax(line), "\w%s \d: \r%d \yTL", itemName, CfgInt("MAIN_MINUS2_TL", -2));
-    FC_MenuAddItemCB(menu, line, "2", knifeCallback);
-
-    CfgStr("MAIN_MINUS2_2_NAME", itemName, charsmax(itemName), "Ekstra Fps Knife");
-    if(g_bSpecialKnifeBought[id])
-        formatex(line, charsmax(line), "\d%s \w[Bu el kullanildi]", itemName);
-    else
-        formatex(line, charsmax(line), "\w%s \d: \r%d \yTL", itemName, CfgInt("MAIN_MINUS2_2_TL", -2));
-    FC_MenuAddItemCB(menu, line, "3", knifeCallback);
-
-    CfgStr("MAIN_SAW_NAME", itemName, charsmax(itemName), "Testere");
-    if(g_bSpecialKnifeBought[id])
-        formatex(line, charsmax(line), "\d%s \w[Bu el kullanildi]", itemName);
-    else
-        formatex(line, charsmax(line), "\w%s \d: \r%d \yTL", itemName, CalcPrice(id, CfgInt("MAIN_SAW_TL", 50)));
-    FC_MenuAddItemCB(menu, line, "4", knifeCallback);
-
-    FC_MenuAddItemCB(menu, "\d-------------------------", "0", separatorCallback);
-
-    new adName[64];
-    CfgStr("MAIN_AD_NAME", adName, charsmax(adName), "Reklam At");
-    formatex(line, charsmax(line), "\y%s \d: \r%d \yTL",
-        adName, max(0, CfgInt("MAIN_AD_TL", 3)));
-    FC_MenuAddItem(menu, line, "5");
-
-    FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
-    menu_display(id, menu);
-}
-
-public CB_MainSpecialKnife(id, menu, item)
-{
-    return g_bSpecialKnifeBought[id] ? ITEM_DISABLED : ITEM_ENABLED;
-}
-
-public CB_MainMarketSeparator(id, menu, item)
-{
-    return ITEM_DISABLED;
-}
-
-public H_MainMarket(id, menu, item)
-{
-    if(item == MENU_EXIT)
-    {
-        menu_destroy(menu);
-        ShowMainMenu(id);
-        return PLUGIN_HANDLED;
-    }
-
-    if(!CanUseJBMenu(id, true))
-    {
-        menu_destroy(menu);
-        return PLUGIN_HANDLED;
-    }
-
-    new info[8], name[64], access, cb;
-    menu_item_getinfo(menu, item, access, info, charsmax(info), name, charsmax(name), cb);
-    new action = str_to_num(info);
-    menu_destroy(menu);
-
-    if(action == 5)
-        BuyMainAdvertisement(id);
-    else if(action >= 2 && action <= 4)
-        BuyMainKnife(id, action);
 
     return PLUGIN_HANDLED;
 }
 
-BuyMainAdvertisement(id)
+ShowMainMenu(id)
 {
-    if(!is_user_alive(id))
+    if(!CanUseJBMenu(id, true))
         return;
 
-    new cost = max(0, CfgInt("MAIN_AD_TL", 3));
-    if(g_iTL[id] < cost)
+    if(g_bGuestMode[id] && g_iUID[id] <= 0)
     {
-        Chat(id, "Reklam icin yeterli TL yok. Gereken: ^3%d TL", cost);
-        ShowMainMarket(id);
+        new guestTitle[256];
+        formatex(guestTitle, charsmax(guestTitle),
+            "\wJailBreak^n\dDurum: \wMisafir \d| \y%d TL^n\dCoin / Rank / Gorev icin hesap girisi gerekir",
+            g_iTL[id]);
+
+        new guestMenu = FC_MenuCreate(guestTitle, "H_Main");
+        NoCTAddCellItem(id,guestMenu);
+        new cbGuestMainMarket = menu_makecallback("CB_MainMarket");
+        FC_MenuAddItemCB(guestMenu, "\wAna Market", "1", cbGuestMainMarket);
+        FC_MenuAddItem(guestMenu, "\wMarketler", "2");
+        FC_MenuAddItem(guestMenu, "\wMeslek Sistemi", "5");
+        FC_MenuAddItem(guestMenu, "\yHesap Sistemine Don", "15");
+        FC_MenuSetProp(guestMenu, MPROP_EXITNAME, "Kapat");
+        NoCTTrackMenu(id,guestMenu,1);menu_display(id, guestMenu);
         return;
     }
 
-    g_iTL[id] -= cost;
-    FC_RecordTLSpend(id, cost);
-    SavePlayer(id);
+    new role[24], rank[48], title[320];
+    GetRoleName(id, role, charsmax(role));
+    GetRankName(g_iRank[id], rank, charsmax(rank));
 
-    new adText[256], playerName[32];
-    CfgStr("MAIN_AD_TEXT", adText, charsmax(adText),
-        "{PLAYER} FeliciaClan JailBreak sunucumuza herkesi bekliyor!");
-    if(!adText[0])
-        copy(adText, charsmax(adText), "{PLAYER} FeliciaClan sunucusuna herkesi bekliyor!");
+    formatex(title, charsmax(title),
+        "\wJailBreak^n\dUID: \w%d \d| \y%d TL \d| \r%d Coin^n\dRank: \w%s \d| Uyelik: \w%s",
+        g_iUID[id], g_iTL[id], g_iCoin[id], rank, role);
 
-    get_user_name(id, playerName, charsmax(playerName));
-    replace_all(adText, charsmax(adText), "{PLAYER}", playerName);
+    new menu = FC_MenuCreate(title, "H_Main");
+    NoCTAddCellItem(id,menu);
 
-    client_print_color(0, print_team_default, "^3[FeliciaClan Reklam] ^1%s", adText);
-    Chat(id, "Reklamin yayinlandi. ^3-%d TL", cost);
-    ShowMainMarket(id);
+    new cbMainMarket = menu_makecallback("CB_MainMarket");
+    FC_MenuAddItemCB(menu, "\wAna Market", "1", cbMainMarket);
+    FC_MenuAddItem(menu, "\wMarketler", "2");
+    FC_MenuAddItem(menu, "\wÇekiliş Merkezi", "19");
+    FC_MenuAddItem(menu, "\wMeslek Sistemi", "5");
+    FC_MenuAddItem(menu, "\wOdul & Gorev Merkezi", "6");
+    FC_MenuAddItem(menu, "\wKasa Sistemi", "7");
+
+    if(HasRole(id, ROLE_ISYANTEAM))
+        FC_MenuAddItem(menu, "\wIsyanTeam Menusu", "8");
+    else
+        FC_MenuAddItem(menu, "\dIsyanTeam Menusu", "8");
+
+    FC_MenuAddItem(menu, "\wKozmetik Menusu", "9");
+    FC_MenuAddItem(menu, "\wBilgiler Menusu", "13");
+    FC_MenuAddItem(menu, "\wBonus Menü", "16");
+    FC_MenuAddItem(menu, "\wKlan Sistemi", "17");
+
+    if(HasRole(id, ROLE_MANAGER))
+        FC_MenuAddItem(menu, "\wYonetici Menusu", "14");
+    else
+        FC_MenuAddItem(menu, "\dYonetici Menusu", "14");
+
+    FC_MenuSetProp(menu, MPROP_BACKNAME, "Onceki Sayfa");
+    FC_MenuSetProp(menu, MPROP_NEXTNAME, "Sonraki Sayfa");
+    FC_MenuSetProp(menu, MPROP_EXITNAME, "Kapat");
+    NoCTTrackMenu(id,menu,1);
+    menu_display(id, menu);
 }
-
-BuyMainKnife(id, knife)
-{
-    if(!is_user_alive(id))
-        return;
-
-    new TeamName:team = get_member(id, m_iTeam);
-    if(knife < 2 || knife > 4 || team != TEAM_TERRORIST)
-    {
-        Chat(id, "Ana Market bicaklari sadece T takimi icindir.");
-        ShowMainMarket(id);
-        return;
-    }
-
-    if(g_bSpecialKnifeBought[id])
-    {
-        Chat(id, "Bu el zaten ozel bicak satin aldin.");
-        ShowMainMarket(id);
-        return;
-    }
-
-    new price;
-    switch(knife)
-    {
-        case 2: price = CfgInt("MAIN_MINUS2_TL", -2);
-        case 3: price = CfgInt("MAIN_MINUS2_2_TL", -2);
-        case 4: price = CfgInt("MAIN_SAW_TL", 50);
-        default: return;
-    }
-
-    if(price > 0)
-        price = CalcPrice(id, price);
-
-    if(price > 0 && g_iTL[id] < price)
-    {
-        Chat(id, "Yeterli TL yok. Gereken: ^3%d TL", price);
-        ShowMainMarket(id);
-        return;
-    }
-
-    g_iTL[id] -= price;
-    FC_RecordTLSpend(id, price);
-    g_iBaseKnife[id] = knife;
-    g_bSpecialKnifeBought[id] = true;
-
-    rg_give_item(id, "weapon_knife", GT_REPLACE);
-    SavePlayer(id);
-
-    new product[64];
-    switch(knife)
-    {
-        case 2: CfgStr("MAIN_MINUS2_NAME", product, charsmax(product), "Fps Knife");
-        case 3: CfgStr("MAIN_MINUS2_2_NAME", product, charsmax(product), "Ekstra Fps Knife");
-        case 4: CfgStr("MAIN_SAW_NAME", product, charsmax(product), "Testere");
-    }
-    PurchaseSuccess(id, product);
-
-    if(price < 0)
-        Chat(id, "Bu secimden ^3%d TL ^1kazandin. Yeni bakiye: ^3%d TL", -price, g_iTL[id]);
-}
-
 
 public CB_MainMarket(id, menu, item)
 {
@@ -3215,7 +3113,6 @@ public H_StandardMarkets(id, menu, item)
 // ============================================================
 // 1) ANA MARKET - DEFAULT T/CT GIZLI, -2 TL BICAK + TESTERE
 // ============================================================
-
 ShowMainMarket(id)
 {
     if(!is_user_alive(id))
@@ -3224,24 +3121,171 @@ ShowMainMarket(id)
         return;
     }
 
-    if(g_bSpecialKnifeBought[id])
-    {
-        Chat(id, "Ana Marketi bu el zaten kullandin.");
-        return;
-    }
-
     new menu = FC_MenuCreate("\wAna Market", "H_MainMarket");
-    new line[128];
+    new line[192], itemName[64];
+    new knifeCallback = menu_makecallback("CB_MainSpecialKnife");
+    new separatorCallback = menu_makecallback("CB_MainMarketSeparator");
 
-    // T/CT ana bicak modelleri spawn'da otomatik verilir; markette gosterilmez.
-    formatex(line, charsmax(line), "\wFps Knife \d: \r%d \yTL", CfgInt("MAIN_MINUS2_TL", -2));
-    FC_MenuAddItem(menu, line, "2");
+    CfgStr("MAIN_MINUS2_NAME", itemName, charsmax(itemName), "Fps Knife");
+    if(g_bSpecialKnifeBought[id])
+        formatex(line, charsmax(line), "\d%s \w[Bu el kullanildi]", itemName);
+    else
+        formatex(line, charsmax(line), "\w%s \d: \r%d \yTL", itemName, CfgInt("MAIN_MINUS2_TL", -2));
+    FC_MenuAddItemCB(menu, line, "2", knifeCallback);
 
-    formatex(line, charsmax(line), "\wTestere \d: \r%d \yTL", CalcPrice(id, CfgInt("MAIN_SAW_TL", 50)));
-    FC_MenuAddItem(menu, line, "3");
+    CfgStr("MAIN_MINUS2_2_NAME", itemName, charsmax(itemName), "Ekstra Fps Knife");
+    if(g_bSpecialKnifeBought[id])
+        formatex(line, charsmax(line), "\d%s \w[Bu el kullanildi]", itemName);
+    else
+        formatex(line, charsmax(line), "\w%s \d: \r%d \yTL", itemName, CfgInt("MAIN_MINUS2_2_TL", -2));
+    FC_MenuAddItemCB(menu, line, "3", knifeCallback);
+
+    CfgStr("MAIN_SAW_NAME", itemName, charsmax(itemName), "Testere");
+    if(g_bSpecialKnifeBought[id])
+        formatex(line, charsmax(line), "\d%s \w[Bu el kullanildi]", itemName);
+    else
+        formatex(line, charsmax(line), "\w%s \d: \r%d \yTL", itemName, CalcPrice(id, CfgInt("MAIN_SAW_TL", 50)));
+    FC_MenuAddItemCB(menu, line, "4", knifeCallback);
+
+    FC_MenuAddItemCB(menu, "\d-------------------------", "0", separatorCallback);
+
+    new adName[64];
+    CfgStr("MAIN_AD_NAME", adName, charsmax(adName), "Reklam At");
+    formatex(line, charsmax(line), "\y%s \d: \r%d \yTL",
+        adName, max(0, CfgInt("MAIN_AD_TL", 3)));
+    FC_MenuAddItem(menu, line, "5");
 
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
+}
+
+public CB_MainSpecialKnife(id, menu, item)
+{
+    return g_bSpecialKnifeBought[id] ? ITEM_DISABLED : ITEM_ENABLED;
+}
+
+public CB_MainMarketSeparator(id, menu, item)
+{
+    return ITEM_DISABLED;
+}
+
+public H_MainMarket(id, menu, item)
+{
+    if(item == MENU_EXIT)
+    {
+        menu_destroy(menu);
+        ShowMainMenu(id);
+        return PLUGIN_HANDLED;
+    }
+
+    if(!CanUseJBMenu(id, true))
+    {
+        menu_destroy(menu);
+        return PLUGIN_HANDLED;
+    }
+
+    new info[8], name[64], access, cb;
+    menu_item_getinfo(menu, item, access, info, charsmax(info), name, charsmax(name), cb);
+    new action = str_to_num(info);
+    menu_destroy(menu);
+
+    if(action == 5)
+        BuyMainAdvertisement(id);
+    else if(action >= 2 && action <= 4)
+        BuyMainKnife(id, action);
+
+    return PLUGIN_HANDLED;
+}
+
+BuyMainAdvertisement(id)
+{
+    if(!is_user_alive(id))
+        return;
+
+    new cost = max(0, CfgInt("MAIN_AD_TL", 3));
+    if(g_iTL[id] < cost)
+    {
+        Chat(id, "Reklam icin yeterli TL yok. Gereken: ^3%d TL", cost);
+        ShowMainMarket(id);
+        return;
+    }
+
+    g_iTL[id] -= cost;
+    FC_RecordTLSpend(id, cost);
+    SavePlayer(id);
+
+    new adText[256], playerName[32];
+    CfgStr("MAIN_AD_TEXT", adText, charsmax(adText),
+        "{PLAYER} FeliciaClan JailBreak sunucumuza herkesi bekliyor!");
+    if(!adText[0])
+        copy(adText, charsmax(adText), "{PLAYER} FeliciaClan sunucusuna herkesi bekliyor!");
+
+    get_user_name(id, playerName, charsmax(playerName));
+    replace_all(adText, charsmax(adText), "{PLAYER}", playerName);
+
+    client_print_color(0, print_team_default, "^3[FeliciaClan Reklam] ^1%s", adText);
+    Chat(id, "Reklamin yayinlandi. ^3-%d TL", cost);
+    ShowMainMarket(id);
+}
+
+BuyMainKnife(id, knife)
+{
+    if(!is_user_alive(id))
+        return;
+
+    new TeamName:team = get_member(id, m_iTeam);
+    if(knife < 2 || knife > 4 || team != TEAM_TERRORIST)
+    {
+        Chat(id, "Ana Market bicaklari sadece T takimi icindir.");
+        ShowMainMarket(id);
+        return;
+    }
+
+    if(g_bSpecialKnifeBought[id])
+    {
+        Chat(id, "Bu el zaten ozel bicak satin aldin.");
+        ShowMainMarket(id);
+        return;
+    }
+
+    new price;
+    switch(knife)
+    {
+        case 2: price = CfgInt("MAIN_MINUS2_TL", -2);
+        case 3: price = CfgInt("MAIN_MINUS2_2_TL", -2);
+        case 4: price = CfgInt("MAIN_SAW_TL", 50);
+        default: return;
+    }
+
+    if(price > 0)
+        price = CalcPrice(id, price);
+
+    if(price > 0 && g_iTL[id] < price)
+    {
+        Chat(id, "Yeterli TL yok. Gereken: ^3%d TL", price);
+        ShowMainMarket(id);
+        return;
+    }
+
+    g_iTL[id] -= price;
+    FC_RecordTLSpend(id, price);
+    g_iBaseKnife[id] = knife;
+    g_bSpecialKnifeBought[id] = true;
+
+    rg_give_item(id, "weapon_knife", GT_REPLACE);
+    SavePlayer(id);
+
+    new product[64];
+    switch(knife)
+    {
+        case 2: CfgStr("MAIN_MINUS2_NAME", product, charsmax(product), "Fps Knife");
+        case 3: CfgStr("MAIN_MINUS2_2_NAME", product, charsmax(product), "Ekstra Fps Knife");
+        case 4: CfgStr("MAIN_SAW_NAME", product, charsmax(product), "Testere");
+    }
+    PurchaseSuccess(id, product);
+
+    if(price < 0)
+        Chat(id, "Bu secimden ^3%d TL ^1kazandin. Yeni bakiye: ^3%d TL", -price, g_iTL[id]);
 }
 
 public H_MainMarket(id, menu, item)
@@ -7716,7 +7760,6 @@ bool:LegitStatKill(attacker, victim)
     g_iLastStatKill[attacker][victim] = now;
     return true;
 }
-
 BaseKnifeDamage(index)
 {
     switch(index)
@@ -7729,7 +7772,6 @@ BaseKnifeDamage(index)
     }
     return 0;
 }
-
 BaseKnifeModels(index, v[], vlen, p[], plen)
 {
     switch(index)
