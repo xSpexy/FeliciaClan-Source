@@ -2398,8 +2398,8 @@ public CmdDonateMessage(id)
     read_args(message, charsmax(message));
     remove_quotes(message);
     trim(message);
-    replace_all(message, "^n", " ");
-    replace_all(message, "^r", " ");
+    replace_all(message, charsmax(message), "^n", " ");
+    replace_all(message, charsmax(message), "^r", " ");
     trim(message);
 
     if(!message[0])
