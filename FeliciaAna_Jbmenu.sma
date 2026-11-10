@@ -2424,13 +2424,18 @@ ShowDonateConfirmMenu(id)
         return;
     }
 
-    new currencyName[12], line[128];
+    new currencyName[12], title[256];
     DonateCurrencyName(g_iDonateCurrency[id], currencyName, charsmax(currencyName));
-    formatex(line, charsmax(line), "\yBağış Gönder [ %d %s ]", g_iDonateAmount[id], currencyName);
 
-    new menu = FC_MenuCreate("\wBağışı Onayla", "H_DonateConfirm");
-    FC_MenuAddItem(menu, line, "1");
-    FC_MenuAddItem(menu, "\dVazgeç", "2");
+    // Bagis tutari ve mesaj secenek olarak degil,
+    // onay menusunun ust bilgilendirme alaninda gosterilir.
+    formatex(title, charsmax(title),
+        "\\wBağışı Onayla^n^n\\yBağış Miktarı: \\w%d %s^n\\yMesajın: \\w%s",
+        g_iDonateAmount[id], currencyName, g_szDonateMessage[id]);
+
+    new menu = FC_MenuCreate(title, "H_DonateConfirm");
+    FC_MenuAddItem(menu, "\\wOnayla", "1");
+    FC_MenuAddItem(menu, "\\dVazgeç", "2");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
 }
