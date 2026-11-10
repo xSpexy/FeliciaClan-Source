@@ -4282,9 +4282,9 @@ public c4menu(id) {
 	}
 }
 public c4menu2(id, menu, item) {
-    if(id>=1 && id<=MaxClients && g_bridgeMenu[id]==menu) g_bridgeMenu[id]=-1;
-    if(g_bridgeRoundClosed) {menu_destroy(menu);return PLUGIN_HANDLED;}
-    if(item == MENU_EXIT || get_member(id, m_iTeam)!=TEAM_CT || !is_user_alive(id)) { menu_destroy(menu); return PLUGIN_HANDLED; }
+	if(id>=1 && id<=MaxClients && g_bridgeMenu[id]==menu) g_bridgeMenu[id]=-1;
+	if(g_bridgeRoundClosed) {menu_destroy(menu);return PLUGIN_HANDLED;}
+	if(item == MENU_EXIT || get_member(id, m_iTeam)!=TEAM_CT || !is_user_alive(id)) { menu_destroy(menu); return PLUGIN_HANDLED; }
 
 	new data[6], key; 
 	menu_item_getinfo(menu, item, _, data, charsmax(data));
@@ -4485,9 +4485,9 @@ public sureligom(id) {
 }
 
 public sureligom2(id, menu, item) {
-    if(id>=1 && id<=MaxClients && g_bridgeMenu[id]==menu) g_bridgeMenu[id]=-1;
-    if(g_bridgeRoundClosed) {menu_destroy(menu);return PLUGIN_HANDLED;}
-    if(item == MENU_EXIT || get_member(id, m_iTeam)!=TEAM_CT) { menu_destroy(menu); return PLUGIN_HANDLED; }
+	if(id>=1 && id<=MaxClients && g_bridgeMenu[id]==menu) g_bridgeMenu[id]=-1;
+	if(g_bridgeRoundClosed) {menu_destroy(menu);return PLUGIN_HANDLED;}
+	if(item == MENU_EXIT || get_member(id, m_iTeam)!=TEAM_CT) { menu_destroy(menu); return PLUGIN_HANDLED; }
 
 	new data[6], key; 
 	menu_item_getinfo(menu, item, _, data, charsmax(data));
