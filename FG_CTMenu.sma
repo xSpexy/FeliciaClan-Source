@@ -8178,6 +8178,7 @@ public OnSpeed(id) {
     if(g_bridgeLegacy || (id>=1 && id<=MaxClients && g_hiz[id])) return;
     if(LibraryExists("fc_lr",LibType_Library) && fc_lr_is_player(id)) return;
     if(!is_user_alive(id)) return;
+    if(g_game==CT_GAME_TRON && IsEntrant(id)) {set_entvar(id,var_maxspeed,400.0);return;}
     if(RocketTarget(id) && g_rocketPhase) set_entvar(id,var_maxspeed,0.01);
     else if(!g_game && !g_hard && AliveCT(id) && g_perk[id][4]) set_entvar(id,var_maxspeed,320.0);
 }
