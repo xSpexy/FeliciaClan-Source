@@ -604,6 +604,7 @@ new g_iDonateSpriteCurrency[33];
 new g_iDonateSpriteTier[33];
 new g_iDonateHistorySerial;
 new g_iDonateHudSync;
+new g_iDonateAmountHudSync;
 new g_iDonateMsgWeaponList;
 new g_iDonateMsgCurWeapon;
 new g_iDonateMsgSetFov;
@@ -1067,6 +1068,7 @@ public plugin_init()
     g_iDonateMsgCurWeapon = get_user_msgid("CurWeapon");
     g_iDonateMsgSetFov = get_user_msgid("SetFOV");
     g_iDonateHudSync = CreateHudSyncObj();
+    g_iDonateAmountHudSync = CreateHudSyncObj();
 
     g_iMarketCosCallback = menu_makecallback("CB_MarketCosmetic");
     g_bNoCTHadCT=NoCTHasGuard();
@@ -1360,6 +1362,7 @@ LoadPlayer(id)
     g_bRankTagEnabled[id] = bool:UIDGetInt(g_iUID[id], "rank_tag_enabled", 1);
     g_iHudMode[id] = clamp(UIDGetInt(g_iUID[id], "hud_mode", HUDMODE_FULL), HUDMODE_FULL, HUDMODE_COUNT-1);
     g_bDonateMediaEnabled[id] = bool:UIDGetInt(g_iUID[id], "donate_media", 1);
+    g_bDonateUsedRound[id] = UIDGetInt(g_iUID[id], "donate_round_stamp", 0) == g_iJBRoundStamp;
 
     for(new i; i < COS_ITEM_COUNT; i++)
     {
@@ -2012,7 +2015,7 @@ bool:DonateWriteWeaponDefinition(const weaponName[], const spriteName[])
 
     fputs(file, "2^n");
     fprintf(file, "crosshair 320 %s 90 -60 128 80^n", spriteName);
-    fprintf(file, "crosshair 640 %s 230 -180 128 80^n", spriteName);
+    fprintf(file, "crosshair 640 %s 230 -120 128 80^n", spriteName);
     fclose(file);
 
     precache_generic(path);
@@ -2174,6 +2177,10 @@ DonateHistorySave(id, amount, currency, const donorName[], const message[])
 
     formatex(key, charsmax(key), "DONATE_%d_NAME", slot);
     nvault_set(g_iVault, key, donorName);
+
+    formatex(key, charsmax(key), "DONATE_%d_UID", slot);
+    num_to_str(g_iUID[id], value, charsmax(value));
+    nvault_set(g_iVault, key, value);
 
     formatex(key, charsmax(key), "DONATE_%d_MESSAGE", slot);
     nvault_set(g_iVault, key, message);
@@ -2510,6 +2517,7 @@ DonateCommit(id)
     }
 
     g_bDonateUsedRound[id] = true;
+    UIDSetInt(g_iUID[id], "donate_round_stamp", g_iJBRoundStamp);
     SavePlayer(id);
 
     new donorName[32], currencyName[12];
@@ -2531,18 +2539,21 @@ DonateCommit(id)
 
 DonateBroadcastMedia(const donorName[], const message[], amount, currency, tier)
 {
-    new currencyName[12], text[256];
+    new currencyName[12], text[192], amountText[64];
     DonateCurrencyName(currency, currencyName, charsmax(currencyName));
-    formatex(text, charsmax(text), "%s^n%s^n%d %s Bağışlandı", donorName, message, amount, currencyName);
+    formatex(text, charsmax(text), "%s^n%s", donorName, message);
+    formatex(amountText, charsmax(amountText), "%d %s Bağışlandı", amount, currencyName);
 
     for(new target = 1; target <= MaxClients; target++)
     {
         if(!is_user_connected(target)) continue;
 
-        // Text notification remains visible. The personal media preference
-        // controls only the SPR and WAV, independently for each recipient.
-        set_hudmessage(255, 220, 80, 0.73, 0.025, 0, 0.0, 4.0, 0.05, 0.1, -1);
+        // Donor/message sit above the sprite; the amount/currency line sits below it.
+        // The personal media preference controls only SPR and WAV independently.
+        set_hudmessage(255, 255, 255, 0.73, 0.025, 0, 0.0, 4.0, 0.05, 0.1, -1);
         ShowSyncHudMsg(target, g_iDonateHudSync, "%s", text);
+        set_hudmessage(255, 220, 80, 0.76, 0.42, 0, 0.0, 4.0, 0.05, 0.1, -1);
+        ShowSyncHudMsg(target, g_iDonateAmountHudSync, "%s", amountText);
 
         if(!g_bDonateMediaEnabled[target]) continue;
 
