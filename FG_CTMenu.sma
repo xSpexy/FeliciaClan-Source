@@ -536,7 +536,12 @@ enum CTGame {
     CT_GAME_SHOTGUN,
     CT_GAME_SNIPER,
     CT_GAME_COLOR_LUCK,
-    CT_GAME_ROCKET
+    CT_GAME_ROCKET,
+    CT_GAME_HOMELANDER,
+    CT_GAME_TRON,
+    CT_GAME_MAGNETIC,
+    CT_GAME_SUMO,
+    CT_GAME_DODGEBALL
 };
 enum CTStopReason {
     CT_STOP_MENU = 0, CT_STOP_WIN, CT_STOP_ROUND, CT_STOP_EMPTY,
@@ -623,7 +628,9 @@ new const GAME_NAMES[][] = {
     "Açlık Oyunları", "Hogwarts", "Kim Milyoner Olmak İster",
     "Zombi", "Hayalet", "Aref", "300 Sparta", "Sarkaç", "Freeze’lenen Ölür",
     "Gömülen Ölür", "Ters Kontrol", "Düşük Yerçekimi Düellosu", "Tek Can",
-    "Deagle Düellosu", "Pompalı Düellosu", "Keskin Nişancı", "Renkli Şans", "Rocket"
+    "Deagle Düellosu", "Pompalı Düellosu", "Keskin Nişancı", "Renkli Şans", "Rocket",
+    "Homelander (Lazer Gözlü CT)", "Tron (Zehirli Ayak İzleri)",
+    "Manyetik Alan (Karadelik)", "Sumo Güreşi (Knockback)", "Dodgeball (Yakan Top)"
 };
 new const GAME_RULES[][] = {
     "", "Mahkûmlar yumrukla dövüşür. JBMenu kilitlenir; son kalan kazanır.",
@@ -653,11 +660,17 @@ new const GAME_RULES[][] = {
     "Herkese M3 pompalı verilir. Son kalan kazanır.",
     "Herkese Scout verilir. Son kalan kazanır.",
     "Rastgele mahkûma renk seçilir. Mavi yaşar, kırmızı iki saniye sonra elenir.",
-    "Süre seç, TMP ile kaç. Sayaç sonunda mahkûmlar havalanır ve patlar. CT God korunur."
+    "Süre seç, TMP ile kaç. Sayaç sonunda mahkûmlar havalanır ve patlar. CT God korunur.",
+    "CT komutanı çok yüksek can ve god alır. Nişangâhına bastığı anda kalın, ölümcül lazer gönderir.",
+    "Mahkûmlar 400 hızla koşar. Her oyuncunun kendi rengindeki izi diğer mahkûma değerse öldürür.",
+    "CT komutanı görüş hattındaki mahkûmları karadeliğe doğru çeker. CT'ye dokunan elenir; duvar arkasındakiler güvendedir.",
+    "Mahkûmlar bıçak darbeleriyle birbirini iter. Komutanın bulunduğu noktadaki dairesel arenadan düşen elenir.",
+    "Yalnızca mahkûmlar sınırsız el bombası alır. Patlama hasarı yoktur; bombanın gövde/kafa isabeti doğrudan eler."
 };
 new const bool:GAME_GOD[] = {
     false, false, false, false, false, true, true, true, false, false, true, true, true, true,
-    false, false, false, false, false, false, false, false, false, false, false, false, false, false, true
+    false, false, false, false, false, false, false, false, false, false, false, false, false, false, true,
+    true, false, false, false, false
 };
 
 enum _:CTConfig {
@@ -667,7 +680,8 @@ enum _:CTConfig {
     CFG_HUNGER_DAMAGE, CFG_CT_HP, CFG_CT_ARMOR, CFG_RADIO, CFG_WIN_TL,
     CFG_PRICE_HP, CFG_PRICE_AMMO, CFG_PRICE_GRAVITY, CFG_PRICE_REGEN,
     CFG_PRICE_SPEED, CFG_LOCAL_START, CFG_LOCAL_MINUTE, CFG_LOCAL_KILL,
-    CFG_SOUNDS, CFG_REFLEX_MIN, CFG_REFLEX_STEP, CFG_REFLEX_FAKE, CFG_TOTAL
+    CFG_SOUNDS, CFG_REFLEX_MIN, CFG_REFLEX_STEP, CFG_REFLEX_FAKE,
+    CFG_SUMO_RADIUS, CFG_SUMO_KNOCKBACK, CFG_TOTAL
 };
 new const CFG_KEYS[][] = {
     "WARDEN_ONLY", "GAME_SECONDS", "GREEN_MIN", "GREEN_MAX", "RED_MIN", "RED_MAX",
@@ -675,11 +689,12 @@ new const CFG_KEYS[][] = {
     "HUNGER_MIN_RADIUS", "HUNGER_SHRINK", "HUNGER_DAMAGE", "CT_SPAWN_HP",
     "CT_SPAWN_ARMOR", "RADIO_KEYS", "WINNER_TL", "PRICE_HP", "PRICE_AMMO",
     "PRICE_GRAVITY", "PRICE_REGEN", "PRICE_SPEED", "LOCAL_START_TL",
-    "LOCAL_MINUTE_TL", "LOCAL_KILL_TL", "MENU_SOUNDS", "REFLEX_MIN_WINDOW_MS", "REFLEX_SPEEDUP_MS", "REFLEX_FAKE_PERCENT"
+    "LOCAL_MINUTE_TL", "LOCAL_KILL_TL", "MENU_SOUNDS", "REFLEX_MIN_WINDOW_MS", "REFLEX_SPEEDUP_MS", "REFLEX_FAKE_PERCENT",
+    "SUMO_PLATFORM_RADIUS", "SUMO_KNOCKBACK"
 };
 new const CFG_DEFAULTS[] = {
     0, 180, 3, 6, 2, 4, 750, 2000, 12, 1800, 160, 25, 5, 100,
-    100, 1, 0, 100, 100, 100, 100, 100, 30, 2, 5, 1, 1000, 100, 25
+    100, 1, 0, 100, 100, 100, 100, 100, 30, 2, 5, 1, 1000, 100, 25, 400, 800
 };
 new g_cfg[CFG_TOTAL];
 new CTGame:g_game;
@@ -694,6 +709,13 @@ new g_oldFF[24], g_oldFFA[24], g_oldInfinite[32];
 new bool:g_cvarsSaved;
 new bool:g_part[MAXP+1], g_partUID[MAXP+1], g_color[MAXP+1];
 new bool:g_ready[MAXP+1], g_prevButtons[MAXP+1];
+new g_gameBoss, g_gameBossUID;
+new Float:g_nextLaser, Float:g_sumoFloor, Float:g_sumoRadius, Float:g_sumoNextDraw;
+new Float:g_sumoCenter[3];
+#define TRON_MAX_SEGMENTS 1024
+new g_tronHead, g_tronCount, g_tronOwner[TRON_MAX_SEGMENTS], g_tronOwnerUID[TRON_MAX_SEGMENTS];
+new Float:g_tronStart[TRON_MAX_SEGMENTS][3], Float:g_tronEnd[TRON_MAX_SEGMENTS][3], Float:g_tronTime[TRON_MAX_SEGMENTS];
+new Float:g_tronLast[MAXP+1][3];
 new Float:g_gameEnd, Float:g_phaseEnd, Float:g_graceEnd, Float:g_nextSecond;
 new Float:g_anchor[MAXP+1][3], Float:g_touchNext[MAXP+1];
 new g_phase, g_bomb, g_secret, g_rounds, g_reflexAction;
@@ -7909,7 +7931,7 @@ RestoreCvars() {
 
 bool:CTBattle() {return g_game==CT_GAME_ZOMBIE || g_game==CT_GAME_GHOST || g_game==CT_GAME_AREF || g_game==CT_GAME_SPARTA;}
 
-bool:CombatGame() {return g_game==CT_GAME_KNIFE || g_game==CT_GAME_GUN || g_game==CT_GAME_TEAMS || g_game==CT_GAME_HUNGER || CTBattle() || g_game==CT_GAME_REVERSE || g_game==CT_GAME_LOW_GRAVITY || g_game==CT_GAME_ONE_HP || g_game==CT_GAME_DEAGLE || g_game==CT_GAME_SHOTGUN || g_game==CT_GAME_SNIPER;}
+bool:CombatGame() {return g_game==CT_GAME_KNIFE || g_game==CT_GAME_GUN || g_game==CT_GAME_TEAMS || g_game==CT_GAME_HUNGER || g_game==CT_GAME_SUMO || CTBattle() || g_game==CT_GAME_REVERSE || g_game==CT_GAME_LOW_GRAVITY || g_game==CT_GAME_ONE_HP || g_game==CT_GAME_DEAGLE || g_game==CT_GAME_SHOTGUN || g_game==CT_GAME_SNIPER;}
 
 BeginSession(CTGame:game,caller) {
     StopRocket();
