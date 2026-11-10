@@ -7939,7 +7939,8 @@ BeginSession(CTGame:game,caller) {
     arrayset(g_reflexLanding,false,sizeof g_reflexLanding);
     CancelC4Countdown();
     for(new id=1;id<=MaxClients;id++) C4Lift(id);
-    g_game=game;g_announced=false;
+    g_game=game;g_announced=false;g_gameBoss=caller;g_gameBossUID=caller>=1 && caller<=MaxClients && is_user_connected(caller)?get_user_userid(caller):0;
+    g_nextLaser=0.0;g_sumoNextDraw=0.0;g_tronHead=-1;g_tronCount=0;
     for(new id=1;id<=MaxClients;id++) if(g_standaloneHud[id]) {FC_ClearInfoHud(id);g_standaloneHud[id]=false;}
     g_phase=0;g_rounds=0;g_bomb=0;g_secret=0;g_crateCount=0;
     g_gameEnd=get_gametime()+float(g_cfg[CFG_GAME_SECONDS]);g_phaseEnd=0.0;g_graceEnd=0.0;g_nextSecond=0.0;
@@ -7954,7 +7955,7 @@ BeginSession(CTGame:game,caller) {
     for(new id=1;id<=MaxClients;id++) {
         if(AliveCT(id)) {
             SaveState(id,SNAP_GAME);
-            if(GAME_GOD[_:game]) {set_entvar(id,var_takedamage,DAMAGE_NO);set_entvar(id,var_health,10000.0);}
+            if(GAME_GOD[_:game] && (game!=CT_GAME_HOMELANDER || id==caller)) {set_entvar(id,var_takedamage,DAMAGE_NO);set_entvar(id,var_health,10000.0);}
         }
         else if(IsEntrant(id) && game!=CT_GAME_HOGWARTS) {
             SaveState(id,SNAP_GAME);GameFreeze(id,false);set_entvar(id,var_gravity,1.0);
@@ -7973,6 +7974,7 @@ StartCTGame(CTGame:game,caller) {
     if(g_rocketActive) {if(caller) Chat(caller,"Önce Rocket işlemini durdur.");return 0;}
     if(LibraryExists("fc_lr",LibType_Library) && fc_lr_active()) {if(caller) Chat(caller,"LR devam ediyor; yeni oyun başlatılamaz.");return 0;}
     if(game<=CT_GAME_NONE || _:game>=sizeof GAME_NAMES || !HasControl(caller)) return 0;
+    if((game==CT_GAME_HOMELANDER || game==CT_GAME_MAGNETIC || game==CT_GAME_SUMO) && !AliveCT(caller)) {if(caller) Chat(caller,"Bu oyun için yaşayan CT komutanı olarak başlatmalısın.");return 0;}
     if(GAME_GOD[_:game] && !g_godMode) {if(caller) Chat(caller,"Godmode önceki el seçilmedi veya bu el kapalı. Bu oyun açılamaz.");return 0;}
     if(g_game!=CT_GAME_NONE || (ExternalReady(CT_GAME_HOGWARTS) && hogwarts_state()) || (ExternalReady(CT_GAME_MILYONER) && milyoner_active())) {
         if(caller) Chat(caller,"Bir oyun zaten aktif. Önce mevcut oyunu durdur.");return 0;
@@ -8028,6 +8030,7 @@ StopCTGame(winner,CTStopReason:reason) {
         }
     }
     RestoreCvars();
+    g_gameBoss=0;g_gameBossUID=0;g_tronCount=0;g_tronHead=-1;g_sumoRadius=0.0;
     new ret;ExecuteForward(g_fwFinished,ret,_:ended,winner,_:reason);
     g_stopping=false;g_bomb=0;
     if(reason==CT_STOP_WIN && winner>0 && is_user_connected(winner)) {
@@ -8098,7 +8101,7 @@ public OnSpawn(id) {
     if(AliveCT(id)) {
         GiveCTLoadout(id,true);QueueLoadout(id);
         set_entvar(id,var_health,float(g_cfg[CFG_CT_HP]));set_entvar(id,var_armorvalue,float(g_cfg[CFG_CT_ARMOR]));
-        if(g_game && GAME_GOD[_:g_game]) {SaveState(id,SNAP_GAME);set_entvar(id,var_takedamage,DAMAGE_NO);set_entvar(id,var_health,10000.0);}
+        if(g_game && GAME_GOD[_:g_game] && (g_game!=CT_GAME_HOMELANDER || id==g_gameBoss)) {SaveState(id,SNAP_GAME);set_entvar(id,var_takedamage,DAMAGE_NO);set_entvar(id,var_health,10000.0);}
         else if(CTBattle()) {SaveState(id,SNAP_GAME);SetupBattleCT(id);}
         else {ApplyCTPerks(id);ApplyRoundGod(id);}
     }
@@ -8149,8 +8152,13 @@ public OnDamage(victim,inflictor,attacker,Float:damage,bits) {
     if(victim>=1 && victim<=MaxClients && AliveCT(victim) && (bits&DMG_FALL)) {SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;}
     if(g_rocketActive && AliveCT(victim)) {SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;}
     if(!g_game || g_game==CT_GAME_HOGWARTS || victim<1 || victim>MaxClients) return HC_CONTINUE;
-    if(AliveCT(victim) && GAME_GOD[_:g_game]) {SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;}
+    if(AliveCT(victim) && GAME_GOD[_:g_game] && (g_game!=CT_GAME_HOMELANDER || victim==g_gameBoss)) {SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;}
     if(!IsEntrant(victim)) return HC_CONTINUE;
+    if(g_game==CT_GAME_TRON || g_game==CT_GAME_DODGEBALL) {SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;}
+    if(g_game==CT_GAME_SUMO) {
+        if(IsEntrant(attacker) && attacker!=victim) SumoKnockback(attacker,victim);
+        SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;
+    }
     if(g_game==CT_GAME_MILYONER || g_game==CT_GAME_RED_LIGHT || g_game==CT_GAME_HOT_POTATO || g_game==CT_GAME_REFLEX || g_game==CT_GAME_NUMBER || g_game==CT_GAME_INFECTION || g_game==CT_GAME_PENDULUM || g_game==CT_GAME_FREEZE_CHANCE || g_game==CT_GAME_COLOR_LUCK || g_game==CT_GAME_BURY_JUMP) {
         if(g_game==CT_GAME_HOT_POTATO && attacker==g_bomb && IsEntrant(attacker) && attacker!=victim) PassBomb(victim);
         SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;
@@ -8248,12 +8256,45 @@ InitInternalGame() {
             }
         }
         case CT_GAME_HUNGER: InitHunger();
+        case CT_GAME_HOMELANDER: {
+            if(AliveCT(g_gameBoss)) {
+                set_entvar(g_gameBoss,var_health,10000.0);
+                set_entvar(g_gameBoss,var_armorvalue,1000.0);
+                set_entvar(g_gameBoss,var_takedamage,DAMAGE_NO);
+                rg_remove_all_items(g_gameBoss);rg_give_item(g_gameBoss,"weapon_knife");
+                Chat(0,"^3%n ^1Homelander oldu! Nişangâhına basılı tutarak lazer gönder.",g_gameBoss);
+            }
+        }
+        case CT_GAME_TRON: {
+            for(new id=1;id<=MaxClients;id++) if(IsEntrant(id)) {
+                g_color[id]=random_num(1,6);
+                new rr,gg,bb;TronColor(id,rr,gg,bb);Glow(id,rr,gg,bb);
+                get_entvar(id,var_origin,g_tronLast[id]);set_entvar(id,var_maxspeed,400.0);
+                rg_remove_all_items(id);rg_give_item(id,"weapon_knife");
+            }
+            Chat(0,"Mahkûmlar 400 hızla koşun! Başka oyuncunun renkli izine dokunmak elenmenize neden olur.");
+        }
+        case CT_GAME_MAGNETIC: {
+            if(AliveCT(g_gameBoss)) {
+                Glow(g_gameBoss,28,28,38);
+                Chat(0,"^3%n ^1Karadelik oldu! Görüş hattındaki mahkûmlar çekilecek; duvarlar korur.",g_gameBoss);
+            }
+        }
+        case CT_GAME_SUMO: InitSumoArena();
+        case CT_GAME_DODGEBALL: {
+            for(new id=1;id<=MaxClients;id++) if(IsEntrant(id)) {
+                rg_remove_all_items(id);rg_give_item(id,"weapon_hegrenade");
+                rg_set_user_bpammo(id,WEAPON_HEGRENADE,1);engclient_cmd(id,"weapon_hegrenade");
+            }
+            Chat(0,"Yakan Top başladı! Yalnızca mahkûmlar bomba kullanır. Patlama hasarsız; doğrudan isabet eler.");
+        }
     }
 }
 
 public GameTick() {
     if(!g_game || g_stopping) return;
     if(!HasCT()) {CheckWinner();return;}
+    if((g_game==CT_GAME_HOMELANDER || g_game==CT_GAME_MAGNETIC) && (!AliveCT(g_gameBoss) || get_user_userid(g_gameBoss)!=g_gameBossUID)) {StopCTGame(0,CT_STOP_EMPTY);return;}
     if(g_game==CT_GAME_HOGWARTS) {if(!ExternalReady(g_game) || !hogwarts_state()) StopCTGame(0,CT_STOP_EMPTY);return;}
     if(g_game==CT_GAME_MILYONER) {if(!ExternalReady(g_game) || !milyoner_active()) StopCTGame(0,CT_STOP_EMPTY);return;}
     new Float:now=get_gametime();
@@ -8283,8 +8324,12 @@ public GameTick() {
             if(!IsEntrant(g_bomb)) {StopCTGame(0,CT_STOP_EMPTY);return;}
             if(g_phase==0 && now>=g_phaseEnd) {g_phase=1;GameFreeze(g_bomb,false);ClearBlind(g_bomb);Chat(0,"Körebe başladı! ^3%n ^1mahkûmları arıyor.",g_bomb);}
         }
+        case CT_GAME_TRON: TickTron(now);
+        case CT_GAME_MAGNETIC: TickMagnetic(now);
+        case CT_GAME_SUMO: TickSumoArena(now);
+        case CT_GAME_DODGEBALL: TickDodgeball();
     }
-    if(g_game==CT_GAME_HOT_POTATO || (g_game==CT_GAME_INFECTION && g_phase)) CheckNearbyContacts();
+    if(g_game==CT_GAME_HOT_POTATO || (g_game==CT_GAME_INFECTION && g_phase) || g_game==CT_GAME_SUMO) CheckNearbyContacts();
     if(now>=g_nextSecond) {
         g_nextSecond=now+1.0;
         if(g_game==CT_GAME_HUNGER) TickHunger(now);
@@ -8320,6 +8365,14 @@ public OnCmdStart(id,uc,seed) {
         // A held jump key cannot generate auto-bunny; fresh ordinary jumps remain.
         if((buttons&IN_JUMP) && !(rising&IN_JUMP)) {buttons&=~IN_JUMP;set_uc(uc,UC_Buttons,buttons);}
     }
+    if(g_game==CT_GAME_HOMELANDER && id==g_gameBoss) {
+        if((buttons&IN_ATTACK) && get_gametime()>=g_nextLaser) {g_nextLaser=get_gametime()+0.30;HomelanderFire(id);}
+        buttons&=~(IN_ATTACK|IN_ATTACK2);set_uc(uc,UC_Buttons,buttons);
+        return FMRES_IGNORED;
+    }
+    if(g_game==CT_GAME_DODGEBALL && IsEntrant(id) && get_user_weapon(id)!=CSW_HEGRENADE) {
+        buttons&=~(IN_ATTACK|IN_ATTACK2);set_uc(uc,UC_Buttons,buttons);
+    }
     if(!IsEntrant(id)) return FMRES_IGNORED;
     if(g_game==CT_GAME_REVERSE) {
         new Float:forwardMove,Float:sideMove;
@@ -8335,7 +8388,13 @@ public OnCmdStart(id,uc,seed) {
 }
 
 public OnTouchPlayers(a,b) {
-    if(!IsEntrant(a) || !IsEntrant(b) || a==b) return;
+    if(a==b) return;
+    if(g_game==CT_GAME_MAGNETIC) {
+        if(a==g_gameBoss && IsEntrant(b)) {Eliminate(b,"Karadeliğin merkezine dokundu");return;}
+        if(b==g_gameBoss && IsEntrant(a)) {Eliminate(a,"Karadeliğin merkezine dokundu");return;}
+    }
+    if(!IsEntrant(a) || !IsEntrant(b)) return;
+    if(g_game==CT_GAME_SUMO) {SumoKnockback(a,b);return;}
     if(g_game==CT_GAME_HOT_POTATO) {if(a==g_bomb) PassBomb(b);else if(b==g_bomb) PassBomb(a);}
     else if(g_game==CT_GAME_INFECTION) {
         if(get_gametime()<g_graceEnd) return;
@@ -8356,10 +8415,164 @@ CheckNearbyContacts() {
         if(g_game==CT_GAME_INFECTION && g_color[players[a]]==g_color[players[b]]) continue;
         new Float:dx=positions[a][0]-positions[b][0],Float:dy=positions[a][1]-positions[b][1],Float:dz=positions[a][2]-positions[b][2];
         if(g_game==CT_GAME_INFECTION) {if(dx*dx+dy*dy+dz*dz<1600.0) OnTouchPlayers(players[a],players[b]);}
+        else if(g_game==CT_GAME_SUMO) {if(dx*dx+dy*dy<2500.0 && floatabs(dz)<=56.0) OnTouchPlayers(players[a],players[b]);}
         else if(dx*dx+dy*dy<=1296.0 && floatabs(dz)<=56.0) OnTouchPlayers(players[a],players[b]);
     }
 }
 
+
+/* === Yeni CT oyunları === */
+stock bool:GameBossValid() {
+    return g_gameBoss>=1 && g_gameBoss<=MaxClients && is_user_connected(g_gameBoss)
+        && get_user_userid(g_gameBoss)==g_gameBossUID && AliveCT(g_gameBoss);
+}
+stock DrawBeamLine(const Float:start[3],const Float:end[3],width,r,g,b,life) {
+    if(!g_beam) return;
+    message_begin(MSG_BROADCAST,SVC_TEMPENTITY);write_byte(TE_BEAMPOINTS);
+    write_coord(floatround(start[0]));write_coord(floatround(start[1]));write_coord(floatround(start[2]));
+    write_coord(floatround(end[0]));write_coord(floatround(end[1]));write_coord(floatround(end[2]));
+    write_short(g_beam);write_byte(0);write_byte(10);write_byte(life);write_byte(width);write_byte(0);
+    write_byte(r);write_byte(g);write_byte(b);write_byte(220);write_byte(0);message_end();
+}
+stock HomelanderFire(id) {
+    if(!GameBossValid() || id!=g_gameBoss) return;
+    new start[3],finish[3],target,body;get_user_origin(id,start,1);get_user_origin(id,finish,3);
+    new Float:a[3],Float:b[3];for(new i=0;i<3;i++){a[i]=float(start[i]);b[i]=float(finish[i]);}
+    DrawBeamLine(a,b,24,255,35,20,5);get_user_aiming(id,target,body,8192);
+    if(IsEntrant(target)) Eliminate(target,"Homelander lazerine yakalandı");
+}
+stock TronColor(id,&r,&g,&b) {
+    switch(g_color[id]) {
+        case 1:{r=255;g=45;b=45;} case 2:{r=45;g=105;b=255;}
+        case 3:{r=45;g=255;b=90;} case 4:{r=255;g=220;b=45;}
+        case 5:{r=230;g=45;b=255;} default:{r=35;g=235;b=255;}
+    }
+}
+stock Float:PointSegmentDistanceSq(const Float:p[3],const Float:a[3],const Float:b[3]) {
+    new Float:vx=b[0]-a[0],Float:vy=b[1]-a[1],Float:vz=b[2]-a[2];
+    new Float:wx=p[0]-a[0],Float:wy=p[1]-a[1],Float:wz=p[2]-a[2];
+    new Float:len=vx*vx+vy*vy+vz*vz,newFloatDummy;
+    new Float:t;
+    if(len>0.001) t=(wx*vx+wy*vy+wz*vz)/len;
+    t=floatmax(0.0,floatmin(1.0,t));
+    new Float:dx=p[0]-(a[0]+t*vx),Float:dy=p[1]-(a[1]+t*vy),Float:dz=p[2]-(a[2]+t*vz);
+    return dx*dx+dy*dy+dz*dz;
+}
+stock AddTronSegment(id,const Float:from[3],const Float:to[3],Float:now) {
+    g_tronHead=(g_tronHead+1)%TRON_MAX_SEGMENTS;new idx=g_tronHead;
+    if(g_tronCount<TRON_MAX_SEGMENTS) g_tronCount++;
+    g_tronOwner[idx]=id;g_tronOwnerUID[idx]=get_user_userid(id);g_tronTime[idx]=now;
+    for(new i=0;i<3;i++){g_tronStart[idx][i]=from[i];g_tronEnd[idx][i]=to[i];}
+    new r,g,b;TronColor(id,r,g,b);DrawBeamLine(from,to,8,r,g,b,65);
+}
+stock TickTron(Float:now) {
+    new Float:pos[MAXP+1][3];
+    for(new id=1;id<=MaxClients;id++) if(IsEntrant(id)) {
+        set_entvar(id,var_maxspeed,400.0);get_entvar(id,var_origin,pos[id]);
+        new Float:dx=pos[id][0]-g_tronLast[id][0],Float:dy=pos[id][1]-g_tronLast[id][1],Float:dz=pos[id][2]-g_tronLast[id][2];
+        if(dx*dx+dy*dy+dz*dz>=324.0) {AddTronSegment(id,g_tronLast[id],pos[id],now);for(new j=0;j<3;j++)g_tronLast[id][j]=pos[id][j];}
+    }
+    for(new id=1;id<=MaxClients;id++) if(IsEntrant(id)) {
+        for(new step=0;step<g_tronCount;step++) {
+            new idx=g_tronHead-step;if(idx<0)idx+=TRON_MAX_SEGMENTS;
+            if(now-g_tronTime[idx]>8.0) continue;
+            if(g_tronOwner[idx]==id && g_tronOwnerUID[idx]==get_user_userid(id)) continue;
+            if(PointSegmentDistanceSq(pos[id],g_tronStart[idx],g_tronEnd[idx])<=576.0) {Eliminate(id,"Başka bir oyuncunun zehirli Tron izine değdi");break;}
+        }
+    }
+}
+stock bool:MagnetLineClear(const Float:start[3],const Float:finish[3]) {
+    new tr=create_tr2();engfunc(EngFunc_TraceLine,start,finish,IGNORE_MONSTERS,0,tr);
+    new Float:fraction;get_tr2(tr,TR_flFraction,fraction);free_tr2(tr);return fraction>=0.98;
+}
+stock DrawMagnetRing(id) {
+    if(!GameBossValid() || id!=g_gameBoss) return;
+    new Float:center[3];get_entvar(id,var_origin,center);center[2]+=24.0;
+    new Float:prev[3],Float:next[3];
+    for(new i=0;i<24;i++) {
+        new Float:a=float(i)*15.0,Float:b=float(i+1)*15.0;
+        prev[0]=center[0]+floatcos(a,degrees)*54.0;prev[1]=center[1]+floatsin(a,degrees)*54.0;prev[2]=center[2];
+        next[0]=center[0]+floatcos(b,degrees)*54.0;next[1]=center[1]+floatsin(b,degrees)*54.0;next[2]=center[2];
+        DrawBeamLine(prev,next,7,90,25,150,18);
+    }
+}
+stock TickMagnetic(Float:now) {
+    if(!GameBossValid()) {StopCTGame(0,CT_STOP_EMPTY);return;}
+    new Float:boss[3],Float:start[3];get_entvar(g_gameBoss,var_origin,boss);
+    start[0]=boss[0];start[1]=boss[1];start[2]=boss[2]+24.0;
+    if(now>=g_sumoNextDraw){DrawMagnetRing(g_gameBoss);g_sumoNextDraw=now+1.0;}
+    for(new id=1;id<=MaxClients;id++) if(IsEntrant(id)) {
+        new Float:target[3];get_entvar(id,var_origin,target);target[2]+=20.0;
+        new Float:dx=boss[0]-target[0],Float:dy=boss[1]-target[1],Float:dz=boss[2]+24.0-target[2];
+        new Float:dist=dx*dx+dy*dy+dz*dz;
+        if(dist>1800.0*1800.0 || dist<1.0 || !MagnetLineClear(start,target)) continue;
+        new Float:length=floatsqroot(dist),Float:force=dist<62500.0?720.0:500.0;
+        new Float:velocity[3];velocity[0]=dx/length*force;velocity[1]=dy/length*force;velocity[2]=dz/length*force+90.0;
+        set_entvar(id,var_velocity,velocity);
+    }
+}
+stock InitSumoArena() {
+    if(!GameBossValid()) return;
+    new Float:start[3],Float:finish[3],Float:ground[3];get_entvar(g_gameBoss,var_origin,start);
+    finish[0]=start[0];finish[1]=start[1];finish[2]=start[2]-320.0;start[2]+=64.0;
+    new tr=create_tr2();engfunc(EngFunc_TraceLine,start,finish,IGNORE_MONSTERS,g_gameBoss,tr);
+    new Float:fraction;get_tr2(tr,TR_flFraction,fraction);
+    if(fraction<1.0)get_tr2(tr,TR_vecEndPos,ground);
+    else{ground[0]=start[0];ground[1]=start[1];ground[2]=finish[2];}
+    free_tr2(tr);g_sumoCenter[0]=ground[0];g_sumoCenter[1]=ground[1];g_sumoFloor=ground[2];
+    g_sumoRadius=float(g_cfg[CFG_SUMO_RADIUS]);g_sumoNextDraw=0.0;
+    new count=CountEntrants(),index;
+    for(new id=1;id<=MaxClients;id++) if(IsEntrant(id)) {
+        new Float:angle=360.0*float(index)/float(max(1,count));index++;
+        new Float:dest[3];dest[0]=g_sumoCenter[0]+floatcos(angle,degrees)*80.0;
+        dest[1]=g_sumoCenter[1]+floatsin(angle,degrees)*80.0;dest[2]=g_sumoFloor+36.0;
+        set_entvar(id,var_origin,dest);set_entvar(id,var_velocity,Float:{0.0,0.0,0.0});
+        rg_remove_all_items(id);rg_give_item(id,"weapon_knife");engclient_cmd(id,"weapon_knife");
+    }
+    DrawSumoRing();Chat(0,"Sumo arenası kuruldu. Yarıçap: ^3%d^1 | İtme gücü: ^3%d",g_cfg[CFG_SUMO_RADIUS],g_cfg[CFG_SUMO_KNOCKBACK]);
+}
+stock DrawSumoRing() {
+    if(g_sumoRadius<=0.0)return;
+    new Float:prev[3],Float:next[3];
+    for(new i=0;i<40;i++) {
+        new Float:a=float(i)*9.0,Float:b=float(i+1)*9.0;
+        prev[0]=g_sumoCenter[0]+floatcos(a,degrees)*g_sumoRadius;prev[1]=g_sumoCenter[1]+floatsin(a,degrees)*g_sumoRadius;prev[2]=g_sumoFloor+4.0;
+        next[0]=g_sumoCenter[0]+floatcos(b,degrees)*g_sumoRadius;next[1]=g_sumoCenter[1]+floatsin(b,degrees)*g_sumoRadius;next[2]=g_sumoFloor+4.0;
+        DrawBeamLine(prev,next,5,255,185,35,18);
+    }
+}
+stock TickSumoArena(Float:now) {
+    if(now>=g_sumoNextDraw){DrawSumoRing();g_sumoNextDraw=now+1.5;}
+    new Float:limit=g_sumoRadius+18.0,Float:limitSq=limit*limit;
+    for(new id=1;id<=MaxClients;id++)if(IsEntrant(id)){
+        new Float:origin[3];get_entvar(id,var_origin,origin);
+        new Float:dx=origin[0]-g_sumoCenter[0],Float:dy=origin[1]-g_sumoCenter[1];
+        if(dx*dx+dy*dy>limitSq || origin[2]<g_sumoFloor-42.0)Eliminate(id,"Sumo platformundan düştü");
+    }
+}
+stock SumoKnockback(attacker,victim) {
+    if(g_game!=CT_GAME_SUMO || !IsEntrant(attacker) || !IsEntrant(victim) || attacker==victim)return;
+    new Float:now=get_gametime();if(now<g_touchNext[victim])return;g_touchNext[victim]=now+0.18;
+    new Float:a[3],Float:b[3],Float:velocity[3];get_entvar(attacker,var_origin,a);get_entvar(victim,var_origin,b);
+    new Float:dx=b[0]-a[0],Float:dy=b[1]-a[1],Float:length=floatsqroot(dx*dx+dy*dy);
+    if(length<1.0){dx=1.0;dy=0.0;length=1.0;}
+    new Float:power=float(g_cfg[CFG_SUMO_KNOCKBACK]);
+    velocity[0]=dx/length*power;velocity[1]=dy/length*power;velocity[2]=floatmax(160.0,power*0.22);
+    set_entvar(victim,var_velocity,velocity);
+}
+stock GiveDodgeball(id) {
+    if(!IsEntrant(id))return;
+    if(!user_has_weapon(id,CSW_HEGRENADE))rg_give_item(id,"weapon_hegrenade");
+    rg_set_user_bpammo(id,WEAPON_HEGRENADE,1);
+}
+stock TickDodgeball(){for(new id=1;id<=MaxClients;id++)if(IsEntrant(id))GiveDodgeball(id);}
+public OnDodgeballGrenadeTouch(grenade,other) {
+    if(g_game!=CT_GAME_DODGEBALL || !pev_valid(grenade) || !IsEntrant(other))return;
+    new owner=pev(grenade,pev_owner);
+    if(!IsEntrant(owner) || owner==other)return;
+    Eliminate(other,"Yakan top doğrudan gövde/kafa isabeti aldı");
+    if(pev_valid(grenade))engfunc(EngFunc_RemoveEntity,grenade);
+}
 PassBomb(target) {
     if(!IsEntrant(target) || target==g_bomb) return;
     new Float:now=get_gametime();
@@ -8401,6 +8614,11 @@ DrawGameHud() {
         case CT_GAME_REFLEX: {if(g_reflexStarting) formatex(detail,charsmax(detail),"OYUN BAŞLIYOR: %d",max(0,floatround(g_reflexStartEnd-get_gametime(),floatround_ceil)));else if(g_phase==1) formatex(detail,charsmax(detail),"%s%s^nTur: %d | Cevap: %.1f sn",g_reflexFake?"SAHTE — DUR! ":"KOMUT: ",REFLEX_LABELS[g_reflexAction],g_rounds+1,ReflexWindow());else copy(detail,charsmax(detail),"Yeni komutu bekle...");}
         case CT_GAME_NUMBER:copy(detail,charsmax(detail),"Sohbete 1-100 arasında sayı yaz.");
         case CT_GAME_HUNGER:formatex(detail,charsmax(detail),"Güvenli alan: %d birim^nKutulardan silah topla.",floatround(g_radius));
+        case CT_GAME_HOMELANDER:copy(detail,charsmax(detail),"CT komutanı: ateş tuşunu basılı tutarak lazer gönder.");
+        case CT_GAME_TRON:copy(detail,charsmax(detail),"400 hız | Başka oyuncunun renkli izine değme!");
+        case CT_GAME_MAGNETIC:copy(detail,charsmax(detail),"Karadeliğe yaklaşma; duvar arkasına saklan.");
+        case CT_GAME_SUMO:formatex(detail,charsmax(detail),"Platform yarıçapı: %d | Bıçakla it, arenadan düşme.",floatround(g_sumoRadius));
+        case CT_GAME_DODGEBALL:copy(detail,charsmax(detail),"Sınırsız bomba | Patlama hasarsız | Doğrudan isabet ölümcül.");
         case CT_GAME_TEAMS: {
             new red,blue;for(new id=1;id<=MaxClients;id++) if(IsEntrant(id)) {if(g_color[id]==1) red++;else blue++;}
             formatex(detail,charsmax(detail),"Kırmızı: %d | Mavi: %d",red,blue);
@@ -9008,6 +9226,7 @@ LoadCTConfig() {
     g_cfg[CFG_HUNGER_RADIUS]=clamp(g_cfg[CFG_HUNGER_RADIUS],300,8000);g_cfg[CFG_HUNGER_MIN]=clamp(g_cfg[CFG_HUNGER_MIN],100,g_cfg[CFG_HUNGER_RADIUS]);
     g_cfg[CFG_HUNGER_SHRINK]=clamp(g_cfg[CFG_HUNGER_SHRINK],1,100);g_cfg[CFG_HUNGER_DAMAGE]=clamp(g_cfg[CFG_HUNGER_DAMAGE],1,100);
     g_cfg[CFG_CT_HP]=clamp(g_cfg[CFG_CT_HP],100,1000);g_cfg[CFG_CT_ARMOR]=clamp(g_cfg[CFG_CT_ARMOR],0,1000);
+    g_cfg[CFG_SUMO_RADIUS]=clamp(g_cfg[CFG_SUMO_RADIUS],200,1200);g_cfg[CFG_SUMO_KNOCKBACK]=clamp(g_cfg[CFG_SUMO_KNOCKBACK],200,2500);
 }
 
 public plugin_natives() {
@@ -9109,6 +9328,7 @@ public plugin_init() {
     RegisterHookChain(RG_CBasePlayerWeapon_DefaultDeploy,"OnFistsDeploy",true);
     register_forward(FM_CmdStart,"OnCmdStart");
     register_touch("player","player","OnTouchPlayers");
+    register_touch("grenade","player","OnDodgeballGrenadeTouch");
     register_touch(LOOT_CLASS,"player","OnLoot");
     register_event("CurWeapon","OnWeapon","be","1=1");
     g_menuCallback=menu_makecallback("CB_GameItem");
