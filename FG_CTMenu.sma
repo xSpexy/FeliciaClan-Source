@@ -8159,8 +8159,9 @@ public OnDamage(victim,inflictor,attacker,Float:damage,bits) {
     if(g_rocketActive && AliveCT(victim)) {SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;}
     if(!g_game || g_game==CT_GAME_HOGWARTS || victim<1 || victim>MaxClients) return HC_CONTINUE;
     if(AliveCT(victim) && GAME_GOD[_:g_game] && (g_game!=CT_GAME_HOMELANDER || victim==g_gameBoss)) {SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;}
+    if(g_game==CT_GAME_DODGEBALL) {SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;}
     if(!IsEntrant(victim)) return HC_CONTINUE;
-    if(g_game==CT_GAME_TRON || g_game==CT_GAME_DODGEBALL) {SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;}
+    if(g_game==CT_GAME_TRON) {SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;}
     if(g_game==CT_GAME_SUMO) {
         if(IsEntrant(attacker) && attacker!=victim) SumoKnockback(attacker,victim);
         SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;
