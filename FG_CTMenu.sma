@@ -4282,118 +4282,118 @@ public c4menu(id) {
 	}
 }
 public c4menu2(id, menu, item) {
-	if(id>=1 && id<=MaxClients && g_bridgeMenu[id]==menu) g_bridgeMenu[id]=-1;
-	if(g_bridgeRoundClosed) {menu_destroy(menu);return PLUGIN_HANDLED;}
-	if(item == MENU_EXIT || get_member(id, m_iTeam)!=TEAM_CT || !is_user_alive(id)) { menu_destroy(menu); return PLUGIN_HANDLED; }
+    if(id>=1 && id<=MaxClients && g_bridgeMenu[id]==menu) g_bridgeMenu[id]=-1;
+    if(g_bridgeRoundClosed) {menu_destroy(menu);return PLUGIN_HANDLED;}
+    if(item == MENU_EXIT || get_member(id, m_iTeam)!=TEAM_CT || !is_user_alive(id)) { menu_destroy(menu); return PLUGIN_HANDLED; }
 
-	new data[6], key; 
-	menu_item_getinfo(menu, item, _, data, charsmax(data));
-	key = str_to_num(data);
+    new data[6], key; 
+    menu_item_getinfo(menu, item, _, data, charsmax(data));
+    key = str_to_num(data);
 
-	switch(key) {
-		case 1 : {
-			if(!get_entvar(id, var_takedamage)) {
-				rg_send_audio(0, ctmenu_gomulunce);
-				normalgom();
-				client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1gomulu olmayan mahkumlari^4 gomdu.", id);
+    switch(key) {
+        case 1 : {
+            if(!get_entvar(id, var_takedamage)) {
+                rg_send_audio(0, ctmenu_gomulunce);
+                normalgom();
+                client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1gomulu olmayan mahkumlari^4 gomdu.", id);
 
-			} else client_print_color(id, id, "^1[^3%s^1]^4 Godmode kapaliyken bu menuyu kullanamazsin.",serverTAG);
-			c4menu(id);
-		}
-		case 2 : {
-			tamgom();
-			rg_send_audio(0, ctmenu_gomulunce);
-			c4menu(id);
-			client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1gomulu olmayan mahkumlari^3 tamamen ^4gomdu.",  id);
-		}
-		case 3 : {
-			kaldir();
-			c4menu(id);
-			client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1gomulu olan mahkumlari^4 kaldirdi.",  id);
-		}
-		case 4 : {
-			if(sureligomSayac>0) {
-				remove_task(task_SURELIGOM);
-				client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1Sureli Gom^4 durdurdu.", id);
-				sureligomSayac=0;
-				tamgomKontrol=false;
-				uckezgomKontrol=false;
-				c4menu(id);
-			} else sureligom(id);
-		}
-		case 5 : {
-			new players[MAX_PLAYERS], num; 
-			get_players_ex(players, num, GetPlayers_ExcludeDead | GetPlayers_MatchTeam | GetPlayers_ExcludeBots, "TERRORIST");
+            } else client_print_color(id, id, "^1[^3%s^1]^4 Godmode kapaliyken bu menuyu kullanamazsin.",serverTAG);
+            c4menu(id);
+        }
+        case 2 : {
+            tamgom();
+            rg_send_audio(0, ctmenu_gomulunce);
+            c4menu(id);
+            client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1gomulu olmayan mahkumlari^3 tamamen ^4gomdu.",  id);
+        }
+        case 3 : {
+            kaldir();
+            c4menu(id);
+            client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1gomulu olan mahkumlari^4 kaldirdi.",  id);
+        }
+        case 4 : {
+            if(sureligomSayac>0) {
+                remove_task(task_SURELIGOM);
+                client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1Sureli Gom^4 durdurdu.", id);
+                sureligomSayac=0;
+                tamgomKontrol=false;
+                uckezgomKontrol=false;
+                c4menu(id);
+            } else sureligom(id);
+        }
+        case 5 : {
+            new players[MAX_PLAYERS], num; 
+            get_players_ex(players, num, GetPlayers_ExcludeDead | GetPlayers_MatchTeam | GetPlayers_ExcludeBots, "TERRORIST");
 
-			for(new i=0; i<num; i++) 
-				rg_give_item(players[i], "weapon_c4");
-			
+            for(new i=0; i<num; i++) 
+                rg_give_item(players[i], "weapon_c4");
+            
 
-			client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan tum mahkumlara ^1C4^4 verdi.",  id);
-			c4menu(id);
-		}
-		case 6 : {
-			if(!get_entvar(id, var_takedamage)) {
-				new players[MAX_PLAYERS], num, ids; 
-				get_players_ex(players, num, GetPlayers_ExcludeDead | GetPlayers_MatchTeam | GetPlayers_ExcludeBots, "TERRORIST");
+            client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan tum mahkumlara ^1C4^4 verdi.",  id);
+            c4menu(id);
+        }
+        case 6 : {
+            if(!get_entvar(id, var_takedamage)) {
+                new players[MAX_PLAYERS], num, ids; 
+                get_players_ex(players, num, GetPlayers_ExcludeDead | GetPlayers_MatchTeam | GetPlayers_ExcludeBots, "TERRORIST");
 
-				for(new i=0; i<num; i++) {
-					ids=players[i];
-					rg_remove_all_items(ids), rg_give_item(ids, "weapon_knife");
-				}
-				client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan tum mahkumlari ^1disarmladi.", id);
+                for(new i=0; i<num; i++) {
+                    ids=players[i];
+                    rg_remove_all_items(ids), rg_give_item(ids, "weapon_knife");
+                }
+                client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan tum mahkumlari ^1disarmladi.", id);
 
-			} else client_print_color(id, id, "^1[^3%s^1]^4 Godmode kapaliyken bu menuyu kullanamazsin.",serverTAG);
-			c4menu(id);
-		}
-		case 7 : {
-			new ids,body; get_user_aiming(id, ids, body);
+            } else client_print_color(id, id, "^1[^3%s^1]^4 Godmode kapaliyken bu menuyu kullanamazsin.",serverTAG);
+            c4menu(id);
+        }
+        case 7 : {
+            new ids,body; get_user_aiming(id, ids, body);
 
-			if(is_user_alive(ids) && get_member(ids, m_iTeam)==TEAM_TERRORIST && !Stuck(ids)) {
-				client_cmd(ids, "-jump;-duck");
+            if(is_user_alive(ids) && get_member(ids, m_iTeam)==TEAM_TERRORIST && !Stuck(ids)) {
+                client_cmd(ids, "-jump;-duck");
 
-				new Float:origin[3]; 
-				get_entvar(ids, var_origin, origin); 
-				origin[2]-=35.0;
+                new Float:origin[3]; 
+                get_entvar(ids, var_origin, origin); 
+                origin[2]-=35.0;
 
-				set_entvar(ids, var_origin, origin);
-				client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1%n ^4adli mahkumu gomdu.", id, ids);
+                set_entvar(ids, var_origin, origin);
+                client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1%n ^4adli mahkumu gomdu.", id, ids);
 
-			} else client_print_color(id, id, "^1[^3%s^1]^4 Lutfen oyuncuya nisan al.",serverTAG);
-			c4menu(id);
-		}
-		case 8 : {
-			new ids,body; get_user_aiming(id, ids, body);
-			if(is_user_alive(ids) && get_member(ids, m_iTeam)==TEAM_TERRORIST && Stuck(ids)) {
-				client_cmd(ids, "-jump;-duck");
+            } else client_print_color(id, id, "^1[^3%s^1]^4 Lutfen oyuncuya nisan al.",serverTAG);
+            c4menu(id);
+        }
+        case 8 : {
+            new ids,body; get_user_aiming(id, ids, body);
+            if(is_user_alive(ids) && get_member(ids, m_iTeam)==TEAM_TERRORIST && Stuck(ids)) {
+                client_cmd(ids, "-jump;-duck");
 
-				new Float:origin[3]; 
-				get_entvar(ids, var_origin, origin); 
-				origin[2]+=35.0;
+                new Float:origin[3]; 
+                get_entvar(ids, var_origin, origin); 
+                origin[2]+=35.0;
 
-				set_entvar(ids, var_origin, origin);
-				client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1%n ^4adli mahkumu kaldirdi.", id, ids);
+                set_entvar(ids, var_origin, origin);
+                client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1%n ^4adli mahkumu kaldirdi.", id, ids);
 
-			} else client_print_color(id, id, "^1[^3%s^1]^4 Lutfen oyuncuya nisan al.", serverTAG);
-			c4menu(id);
-		}
-		case 9 : {
-			new players[MAX_PLAYERS],num,ids; 
-			get_players_ex(players, num, GetPlayers_ExcludeDead | GetPlayers_MatchTeam | GetPlayers_ExcludeBots, "CT");
+            } else client_print_color(id, id, "^1[^3%s^1]^4 Lutfen oyuncuya nisan al.", serverTAG);
+            c4menu(id);
+        }
+        case 9 : {
+            new players[MAX_PLAYERS],num,ids; 
+            get_players_ex(players, num, GetPlayers_ExcludeDead | GetPlayers_MatchTeam | GetPlayers_ExcludeBots, "CT");
 
-			for(new i=0; i<num; i++) {
-				ids=players[i];
+            for(new i=0; i<num; i++) {
+                ids=players[i];
 
-				rg_give_item(ids, "weapon_deagle"), rg_set_user_bpammo(ids, WEAPON_DEAGLE, 35);
-				
-			}
+                rg_give_item(ids, "weapon_deagle"), rg_set_user_bpammo(ids, WEAPON_DEAGLE, 35);
+                
+            }
 
-			client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan tum gardiyanlara ^1deagle^4 verdi.", id);
-			c4menu(id);
-		}
-	}
-	menu_destroy(menu);
-	return PLUGIN_HANDLED;
+            client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan tum gardiyanlara ^1deagle^4 verdi.", id);
+            c4menu(id);
+        }
+    }
+    menu_destroy(menu);
+    return PLUGIN_HANDLED;
 }
 public normalgom() {
 	new players[MAX_PLAYERS], num, ids, silah;
@@ -4485,35 +4485,35 @@ public sureligom(id) {
 }
 
 public sureligom2(id, menu, item) {
-	if(id>=1 && id<=MaxClients && g_bridgeMenu[id]==menu) g_bridgeMenu[id]=-1;
-	if(g_bridgeRoundClosed) {menu_destroy(menu);return PLUGIN_HANDLED;}
-	if(item == MENU_EXIT || get_member(id, m_iTeam)!=TEAM_CT) { menu_destroy(menu); return PLUGIN_HANDLED; }
+    if(id>=1 && id<=MaxClients && g_bridgeMenu[id]==menu) g_bridgeMenu[id]=-1;
+    if(g_bridgeRoundClosed) {menu_destroy(menu);return PLUGIN_HANDLED;}
+    if(item == MENU_EXIT || get_member(id, m_iTeam)!=TEAM_CT) { menu_destroy(menu); return PLUGIN_HANDLED; }
 
-	new data[6], key; 
-	menu_item_getinfo(menu, item, _, data, charsmax(data));
-	key = str_to_num(data);
+    new data[6], key; 
+    menu_item_getinfo(menu, item, _, data, charsmax(data));
+    key = str_to_num(data);
 
-	switch(key) {
-		case 1 : sureligomSayac=5;
-		case 2 : sureligomSayac=10, uckezgomKontrol=true;
-		case 3 : sureligomSayac=15, uckezgomKontrol=true;
-		case 4 : sureligomSayac=20, uckezgomKontrol=true;
-		case 5 : sureligomSayac=30, tamgomKontrol=true;
-		case 6 : sureligomSayac=40, tamgomKontrol=true;
-		case 7 : sureligomSayac=60, tamgomKontrol=true;
-	}
+    switch(key) {
+        case 1 : sureligomSayac=5;
+        case 2 : sureligomSayac=10, uckezgomKontrol=true;
+        case 3 : sureligomSayac=15, uckezgomKontrol=true;
+        case 4 : sureligomSayac=20, uckezgomKontrol=true;
+        case 5 : sureligomSayac=30, tamgomKontrol=true;
+        case 6 : sureligomSayac=40, tamgomKontrol=true;
+        case 7 : sureligomSayac=60, tamgomKontrol=true;
+    }
 
-	hucrekapisiniac(id);
+    hucrekapisiniac(id);
 
-	client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1Sureli Gom^4 baslatti.", id);
-	//client_print_color(0, id, "^1[^3%s^1]^4 Mahkumlarin Gomulmesine ^1[ ^3%d ^1]^4 saniye kaldi.",serverTAG,sureligomSayac);
+    client_print_color(0, id, "^1[^3%n^1]^4 adli gardiyan ^1Sureli Gom^4 baslatti.", id);
+    //client_print_color(0, id, "^1[^3%s^1]^4 Mahkumlarin Gomulmesine ^1[ ^3%d ^1]^4 saniye kaldi.",serverTAG,sureligomSayac);
 
-	remove_task(task_SURELIGOM); 
-	set_task_ex(1.0, "sureligom3", task_SURELIGOM, .flags = SetTask_Repeat);
-	c4menu(id);
+    remove_task(task_SURELIGOM); 
+    set_task_ex(1.0, "sureligom3", task_SURELIGOM, .flags = SetTask_Repeat);
+    c4menu(id);
 
-	menu_destroy(menu);
-	return PLUGIN_HANDLED;
+    menu_destroy(menu);
+    return PLUGIN_HANDLED;
 }
 
 public sureligom3() {
