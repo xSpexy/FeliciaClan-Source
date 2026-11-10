@@ -5476,11 +5476,11 @@ ShowProfessionMenu(id)
 
     if(HasRole(id, ROLE_PRIME))
     {
-        formatex(line, charsmax(line), "\\wSoyguncu \\d- E ile takim arkadasini %d sn icinde soy",
+        formatex(line, charsmax(line), "\wSoyguncu \d- E ile takim arkadasini %d sn icinde soy",
             clamp(CfgInt("PROF_ROBBERY_SECONDS",5),1,15));
         FC_MenuAddItem(menu, line, "8");
 
-        formatex(line, charsmax(line), "\\wZhonya \\d- %d sn hasar almaz / vuramaz",
+        formatex(line, charsmax(line), "\wZhonya \d- %d sn hasar almaz / vuramaz",
             clamp(CfgInt("PROF_ZHONYA_SECONDS",5),1,15));
         FC_MenuAddItem(menu, line, "9");
     }
@@ -10209,6 +10209,10 @@ public PreviewCmdStart(id,uc,seed)
             buttons &= ~IN_USE;
         }
     }
+
+    if(g_bProfessionZhonyaActive[id])
+        buttons &= ~(IN_ATTACK | IN_ATTACK2 | IN_JUMP | IN_DUCK | IN_FORWARD
+            | IN_BACK | IN_MOVELEFT | IN_MOVERIGHT | IN_USE | IN_RELOAD);
 
     if(g_iPreviewCos[id] >= 0)
         buttons &= ~(IN_ATTACK | IN_ATTACK2);
