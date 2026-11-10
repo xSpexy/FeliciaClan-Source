@@ -8504,8 +8504,9 @@ stock TickMagnetic(Float:now) {
         new Float:target[3];get_entvar(id,var_origin,target);target[2]+=20.0;
         new Float:dx=boss[0]-target[0],Float:dy=boss[1]-target[1],Float:dz=boss[2]+24.0-target[2];
         new Float:dist=dx*dx+dy*dy+dz*dz;
-        if(dist>1800.0*1800.0 || dist<1.0 || !MagnetLineClear(start,target)) continue;
+        if(dist>1800.0*1800.0 || !MagnetLineClear(start,target)) continue;
         if(dist<55.0*55.0) {Eliminate(id,"Karadeliğin merkezine dokundu");continue;}
+        if(dist<1.0) continue;
         new Float:length=floatsqroot(dist),Float:force=dist<62500.0?720.0:500.0;
         new Float:velocity[3];velocity[0]=dx/length*force;velocity[1]=dy/length*force;velocity[2]=dz/length*force+90.0;
         set_entvar(id,var_velocity,velocity);
