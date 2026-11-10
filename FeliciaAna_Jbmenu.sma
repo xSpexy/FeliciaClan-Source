@@ -2430,12 +2430,12 @@ ShowDonateConfirmMenu(id)
     // Bagis tutari ve mesaj secenek olarak degil,
     // onay menusunun ust bilgilendirme alaninda gosterilir.
     formatex(title, charsmax(title),
-        "\\wBağışı Onayla^n^n\\yBağış Miktarı: \\w%d %s^n\\yMesajın: \\w%s",
+        "\wBağışı Onayla^n^n\rBağış Miktarı: \r%d %s^n\rMesajın: \r%s",
         g_iDonateAmount[id], currencyName, g_szDonateMessage[id]);
 
     new menu = FC_MenuCreate(title, "H_DonateConfirm");
-    FC_MenuAddItem(menu, "\\wOnayla", "1");
-    FC_MenuAddItem(menu, "\\dVazgeç", "2");
+    FC_MenuAddItem(menu, "\wOnayla", "1");
+    FC_MenuAddItem(menu, "\wVazgeç", "2");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
 }
