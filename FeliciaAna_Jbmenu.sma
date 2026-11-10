@@ -580,6 +580,7 @@ new g_iVault = INVALID_HANDLE;
 new g_iUID[33];
 new g_iTL[33];
 new g_iCoin[33];
+new bool:g_bDonateMediaEnabled[33];
 new g_iPlayRewardMinutes[33];
 #define PLAY_REWARD_TASK 28000
 #define PLAY_REWARD_MINUTES 30
@@ -791,6 +792,7 @@ public plugin_natives()
     register_native("fc_get_xp", "N_GetXP");
     register_native("fc_add_xp", "N_AddXP");
     register_native("fc_get_profession", "N_GetProfession");
+    register_native("fc_donate_media_enabled", "N_DonateMediaEnabled");
 }
 public OptionalCTMenuNative(const name[], index, trap)
 {
@@ -801,6 +803,12 @@ public OptionalCTMenuNative(const name[], index, trap)
 public N_GetUID(plugin, params) { return g_iUID[get_param(1)]; }
 public N_GetTL(plugin, params) { return g_iTL[get_param(1)]; }
 public N_GetCoin(plugin, params) { return g_iCoin[get_param(1)]; }
+public N_DonateMediaEnabled(plugin, params)
+{
+    new id = get_param(1);
+    if(id < 1 || id > MaxClients || !is_user_connected(id)) return 1;
+    return g_bDonateMediaEnabled[id] ? 1 : 0;
+}
 public N_IsPrime(plugin, params) { return HasRole(get_param(1), ROLE_PRIME); }
 public N_IsIsyan(plugin, params) { return HasRole(get_param(1), ROLE_ISYANTEAM); }
 public N_IsManager(plugin, params) { return HasRole(get_param(1), ROLE_MANAGER); }
@@ -1144,6 +1152,7 @@ public pUserExit(id)
     g_iProfession[id]=PROF_NONE;g_iProfessionApplied[id]=-1;
     g_bProfessionChosenRound[id]=false;
     g_iUID[id] = 0;g_iHudTeam[id]=-1;g_iRentalMenu[id]=-1;g_bClanTagEnabled[id]=false;g_bRankTagEnabled[id]=true;
+    g_bDonateMediaEnabled[id] = true;
     g_bInfoHudShown[id]=false;g_bRentalRefresh[id]=false;
     g_iTL[id] = 0;
     g_iCoin[id] = 0;
@@ -1167,6 +1176,7 @@ ResetRuntime(id)
     g_iUID[id] = 0;
     g_iTL[id] = 0;
     g_iCoin[id] = 0;
+    g_bDonateMediaEnabled[id] = true;
     g_iTLSpent[id]=g_iCoinEarned[id]=g_iCoinSpent[id]=g_iExchangeRemainder[id]=0;
     g_iHPBought[id]=g_iBonusDailyNext[id]=g_iBonusPlayStamp[id]=0;g_bBonusRound[id]=false;
     g_iPreviewCos[id]=-1;g_iPreviewUID[id]=g_iPreviewCamera[id]=g_iPreviewProp[id]=0;g_iPreviewPose[id]=-1;g_flPreviewPoseStart[id]=0.0;g_bDetailHud[id]=false;g_iDetailStamp[id]=-1;
@@ -1289,6 +1299,7 @@ LoadPlayer(id)
     g_bClanTagEnabled[id] = bool:UIDGetInt(g_iUID[id], "clan_tag_enabled", 0);
     g_bRankTagEnabled[id] = bool:UIDGetInt(g_iUID[id], "rank_tag_enabled", 1);
     g_iHudMode[id] = clamp(UIDGetInt(g_iUID[id], "hud_mode", HUDMODE_FULL), HUDMODE_FULL, HUDMODE_COUNT-1);
+    g_bDonateMediaEnabled[id] = bool:UIDGetInt(g_iUID[id], "donate_media", 1);
 
     for(new i; i < COS_ITEM_COUNT; i++)
     {
@@ -1358,6 +1369,7 @@ SavePlayer(id)
     UIDSetInt(g_iUID[id], "clan_tag_enabled", g_bClanTagEnabled[id]);
     UIDSetInt(g_iUID[id], "rank_tag_enabled", g_bRankTagEnabled[id]);
     UIDSetInt(g_iUID[id], "hud_mode", g_iHudMode[id]);
+    UIDSetInt(g_iUID[id], "donate_media", g_bDonateMediaEnabled[id]);
 
     for(new i; i < COS_ITEM_COUNT; i++)
     {
@@ -1706,6 +1718,7 @@ ShowMainMenu(id)
         FC_MenuAddItemCB(guestMenu, guestMarketLabel, "1", cbGuestMainMarket);
         FC_MenuAddItem(guestMenu, "\wMarketler", "2");
         FC_MenuAddItem(guestMenu, "\wMeslek Sistemi", "5");
+        FC_MenuAddItem(guestMenu, "\wFPS Seçenekleri", "20");
         FC_MenuAddItem(guestMenu, "\yHesap Sistemine Don", "15");
         FC_MenuSetProp(guestMenu, MPROP_EXITNAME, "Kapat");
         NoCTTrackMenu(id,guestMenu,1);menu_display(id, guestMenu);
@@ -1747,6 +1760,7 @@ ShowMainMenu(id)
     FC_MenuAddItem(menu, "\wBonus Menü", "16");
     FC_MenuAddItem(menu, "\wKlan Sistemi", "17");
     FC_MenuAddItem(menu, "\wÇekiliş Merkezi", "19");
+    FC_MenuAddItem(menu, "\wFPS Seçenekleri", "20");
 
     if(HasRole(id, ROLE_MANAGER))
         FC_MenuAddItem(menu, "\wYonetici Menusu", "14");
@@ -1843,6 +1857,7 @@ public H_Main(id, menu, item)
             else
                 RaffleShowHub(id);
         }
+        case 20: ShowFPSOptionsMenu(id);
         case NOCT_CELL_ACTION: {NoCTOpenCells(id);ShowMainMenu(id);}
     }
 
@@ -1850,6 +1865,60 @@ public H_Main(id, menu, item)
 }
 
 
+
+// ============================================================
+// FPS SECENEKLERI
+// Yeni kisiye ozel istemci/gorsel ayarlari bu submenuye eklenebilir.
+// ============================================================
+
+ShowFPSOptionsMenu(id)
+{
+    if(!CanUseJBMenu(id, true)) return;
+
+    new menu = FC_MenuCreate("\wFPS Seçenekleri", "H_FPSOptions");
+    new label[96];
+    if(g_bDonateMediaEnabled[id])
+        formatex(label, charsmax(label), "\wBağış Medyası \d[ \yAçık \d]");
+    else
+        formatex(label, charsmax(label), "\wBağış Medyası \d[ \rKapalı \d]");
+
+    FC_MenuAddItem(menu, label, "1");
+    FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
+    menu_display(id, menu);
+}
+
+public H_FPSOptions(id, menu, item)
+{
+    if(item == MENU_EXIT)
+    {
+        menu_destroy(menu);
+        ShowMainMenu(id);
+        return PLUGIN_HANDLED;
+    }
+
+    if(!CanUseJBMenu(id, true))
+    {
+        menu_destroy(menu);
+        return PLUGIN_HANDLED;
+    }
+
+    new info[8], name[64], access, cb;
+    menu_item_getinfo(menu, item, access, info, charsmax(info), name, charsmax(name), cb);
+    new key = str_to_num(info);
+    menu_destroy(menu);
+
+    if(key == 1)
+    {
+        g_bDonateMediaEnabled[id] = !g_bDonateMediaEnabled[id];
+        if(g_iUID[id] > 0 && g_bProfileLoaded[id])
+            UIDSetInt(g_iUID[id], "donate_media", g_bDonateMediaEnabled[id]);
+
+        Chat(id, "Bağış medyası artık %s.", g_bDonateMediaEnabled[id] ? "açık" : "kapalı");
+        ShowFPSOptionsMenu(id);
+    }
+
+    return PLUGIN_HANDLED;
+}
 
 // ============================================================
 // CEKILIS SISTEMI - nVault veri katmani
