@@ -7955,7 +7955,10 @@ BeginSession(CTGame:game,caller) {
     for(new id=1;id<=MaxClients;id++) {
         if(AliveCT(id)) {
             SaveState(id,SNAP_GAME);
-            if(GAME_GOD[_:game] && (game!=CT_GAME_HOMELANDER || id==caller)) {set_entvar(id,var_takedamage,DAMAGE_NO);set_entvar(id,var_health,10000.0);}
+            if(GAME_GOD[_:game]) {
+                if(game==CT_GAME_HOMELANDER && id!=caller) set_entvar(id,var_takedamage,DAMAGE_AIM);
+                else {set_entvar(id,var_takedamage,DAMAGE_NO);set_entvar(id,var_health,10000.0);}
+            }
         }
         else if(IsEntrant(id) && game!=CT_GAME_HOGWARTS) {
             SaveState(id,SNAP_GAME);GameFreeze(id,false);set_entvar(id,var_gravity,1.0);
@@ -8101,7 +8104,10 @@ public OnSpawn(id) {
     if(AliveCT(id)) {
         GiveCTLoadout(id,true);QueueLoadout(id);
         set_entvar(id,var_health,float(g_cfg[CFG_CT_HP]));set_entvar(id,var_armorvalue,float(g_cfg[CFG_CT_ARMOR]));
-        if(g_game && GAME_GOD[_:g_game] && (g_game!=CT_GAME_HOMELANDER || id==g_gameBoss)) {SaveState(id,SNAP_GAME);set_entvar(id,var_takedamage,DAMAGE_NO);set_entvar(id,var_health,10000.0);}
+        if(g_game && GAME_GOD[_:g_game]) {
+            if(g_game==CT_GAME_HOMELANDER && id!=g_gameBoss) set_entvar(id,var_takedamage,DAMAGE_AIM);
+            else {SaveState(id,SNAP_GAME);set_entvar(id,var_takedamage,DAMAGE_NO);set_entvar(id,var_health,10000.0);}
+        }
         else if(CTBattle()) {SaveState(id,SNAP_GAME);SetupBattleCT(id);}
         else {ApplyCTPerks(id);ApplyRoundGod(id);}
     }
