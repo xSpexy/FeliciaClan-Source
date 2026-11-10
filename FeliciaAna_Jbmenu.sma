@@ -2216,14 +2216,14 @@ ShowDonateMainMenu(id)
 {
     if(!CanUseJBMenu(id, true)) return;
 
-    new menu = FC_MenuCreate("\\wDonate Sistemi", "H_DonateMain");
+    new menu = FC_MenuCreate("\wDonate Sistemi", "H_DonateMain");
     if(get_member(id, m_iTeam) == TEAM_TERRORIST)
-        FC_MenuAddItem(menu, "\\wBağış Gönder", "1");
+        FC_MenuAddItem(menu, "\wBağış Gönder", "1");
     if(HasRole(id, ROLE_MANAGER))
-        FC_MenuAddItem(menu, "\\wGeçmiş Bağışlar", "2");
+        FC_MenuAddItem(menu, "\wGeçmiş Bağışlar", "2");
 
     if(get_member(id, m_iTeam) != TEAM_TERRORIST && !HasRole(id, ROLE_MANAGER))
-        FC_MenuAddItem(menu, "\\dBağış göndermek için Mahkûm olmalısın", "0");
+        FC_MenuAddItem(menu, "\dBağış göndermek için Mahkûm olmalısın", "0");
 
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
@@ -2284,11 +2284,11 @@ ShowDonateCurrencyMenu(id)
         return;
     }
 
-    new menu = FC_MenuCreate("\\wBağış Para Birimi", "H_DonateCurrency");
+    new menu = FC_MenuCreate("\wBağış Para Birimi", "H_DonateCurrency");
     new line[96];
-    formatex(line, charsmax(line), "\\wTL \\y[ %d TL ]", g_iTL[id]);
+    formatex(line, charsmax(line), "\wTL \y[ %d TL ]", g_iTL[id]);
     FC_MenuAddItem(menu, line, "1");
-    formatex(line, charsmax(line), "\\wCoin \\y[ %d Coin ]", g_iCoin[id]);
+    formatex(line, charsmax(line), "\wCoin \y[ %d Coin ]", g_iCoin[id]);
     FC_MenuAddItem(menu, line, "2");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
@@ -2426,11 +2426,11 @@ ShowDonateConfirmMenu(id)
 
     new currencyName[12], line[128];
     DonateCurrencyName(g_iDonateCurrency[id], currencyName, charsmax(currencyName));
-    formatex(line, charsmax(line), "\\yBağış Gönder [ %d %s ]", g_iDonateAmount[id], currencyName);
+    formatex(line, charsmax(line), "\yBağış Gönder [ %d %s ]", g_iDonateAmount[id], currencyName);
 
-    new menu = FC_MenuCreate("\\wBağışı Onayla", "H_DonateConfirm");
+    new menu = FC_MenuCreate("\wBağışı Onayla", "H_DonateConfirm");
     FC_MenuAddItem(menu, line, "1");
-    FC_MenuAddItem(menu, "\\dVazgeç", "2");
+    FC_MenuAddItem(menu, "\dVazgeç", "2");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
 }
@@ -2571,12 +2571,12 @@ ShowDonateHistoryMenu(id)
         return;
     }
 
-    new menu = FC_MenuCreate("\\wGeçmiş Bağışlar", "H_DonateHistory");
+    new menu = FC_MenuCreate("\wGeçmiş Bağışlar", "H_DonateHistory");
     new count = min(g_iDonateHistorySerial, 20);
     new line[160], info[16], donor[40], amountText[24], currencyText[12], serial;
 
     if(!count)
-        FC_MenuAddItem(menu, "\\dHenüz bağış kaydı yok", "0");
+        FC_MenuAddItem(menu, "\dHenüz bağış kaydı yok", "0");
 
     for(new i; i < count; i++)
     {
@@ -2587,7 +2587,7 @@ ShowDonateHistoryMenu(id)
         new currency = clamp(str_to_num(currencyText), 0, DONATE_CURRENCY_COUNT - 1);
         new currencyName[12];
         DonateCurrencyName(currency, currencyName, charsmax(currencyName));
-        formatex(line, charsmax(line), "\\w%s \\y- %s %s", donor, amountText, currencyName);
+        formatex(line, charsmax(line), "\w%s \y- %s %s", donor, amountText, currencyName);
         num_to_str(serial, info, charsmax(info));
         FC_MenuAddItem(menu, line, info);
     }
@@ -2638,11 +2638,11 @@ ShowDonateHistoryDetail(id, serial)
     format_time(date, charsmax(date), "%d.%m.%Y %H:%M", str_to_num(timeText));
 
     formatex(title, charsmax(title),
-        "\\wBağış Detayı^n^n\\yBağışçı: \\w%s^n\\yMiktar: \\w%s %s^n\\yTarih: \\w%s^n^n\\yMesaj: \\w%s",
+        "\wBağış Detayı^n^n\yBağışçı: \w%s^n\yMiktar: \w%s %s^n\yTarih: \w%s^n^n\yMesaj: \w%s",
         donor, amountText, currencyName, date, message);
 
     new menu = FC_MenuCreate(title, "H_DonateHistoryDetail");
-    FC_MenuAddItem(menu, "\\wBağış Geçmişine Dön", "1");
+    FC_MenuAddItem(menu, "\wBağış Geçmişine Dön", "1");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
 }
