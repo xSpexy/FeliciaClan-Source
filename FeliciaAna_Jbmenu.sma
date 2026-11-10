@@ -53,6 +53,8 @@ native bool:fc_ct_hud_visible(player);
 native fc_ct_game_id();
 native bool:fc_ct_rocket_is_player(player);
 native bool:fc_ct_rocket_active();
+// Optional native exported by the standalone donate plugin.
+native fc_donate_open(player);
 new bool:g_bRocketAPI;
 
 /* === fc_hud_frame: SMA icine alinmis kod === */
@@ -796,7 +798,7 @@ public plugin_natives()
 }
 public OptionalCTMenuNative(const name[], index, trap)
 {
-    if(!trap && (contain(name,"fc_ct_")==0 || contain(name,"fc_lr_")==0)) return PLUGIN_HANDLED;
+    if(!trap && (contain(name,"fc_ct_")==0 || contain(name,"fc_lr_")==0 || contain(name,"fc_donate_")==0)) return PLUGIN_HANDLED;
     return PLUGIN_CONTINUE;
 }
 
@@ -1717,6 +1719,7 @@ ShowMainMenu(id)
             copy(guestMarketLabel, charsmax(guestMarketLabel), "\wAna Market");
         FC_MenuAddItemCB(guestMenu, guestMarketLabel, "1", cbGuestMainMarket);
         FC_MenuAddItem(guestMenu, "\wMarketler", "2");
+        FC_MenuAddItem(guestMenu, "\wExtra Özellikler", "21");
         FC_MenuAddItem(guestMenu, "\wMeslek Sistemi", "5");
         FC_MenuAddItem(guestMenu, "\wFPS Seçenekleri", "20");
         FC_MenuAddItem(guestMenu, "\yHesap Sistemine Don", "15");
@@ -1746,6 +1749,7 @@ ShowMainMenu(id)
         copy(mainMarketLabel, charsmax(mainMarketLabel), "\wAna Market");
     FC_MenuAddItemCB(menu, mainMarketLabel, "1", cbMainMarket);
     FC_MenuAddItem(menu, "\wMarketler", "2");
+    FC_MenuAddItem(menu, "\wExtra Özellikler", "21");
     FC_MenuAddItem(menu, "\wMeslek Sistemi", "5");
     FC_MenuAddItem(menu, "\wOdul & Gorev Merkezi", "6");
     FC_MenuAddItem(menu, "\wKasa Sistemi", "7");
@@ -1858,6 +1862,7 @@ public H_Main(id, menu, item)
                 RaffleShowHub(id);
         }
         case 20: ShowFPSOptionsMenu(id);
+        case 21: ShowExtraFeaturesMenu(id);
         case NOCT_CELL_ACTION: {NoCTOpenCells(id);ShowMainMenu(id);}
     }
 
@@ -1865,6 +1870,59 @@ public H_Main(id, menu, item)
 }
 
 
+
+// ============================================================
+// EXTRA OZELLIKLER
+// Harici sistem menuleri burada toplanir.
+// Yeni secenekler eklenecegi zaman bu submenuye yeni item + handler key eklenir.
+// ============================================================
+
+ShowExtraFeaturesMenu(id)
+{
+    if(!CanUseJBMenu(id, true)) return;
+
+    new menu = FC_MenuCreate("\wExtra Özellikler", "H_ExtraFeatures");
+    FC_MenuAddItem(menu, "\wDonate Sistemi", "1");
+    FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
+    menu_display(id, menu);
+}
+
+public H_ExtraFeatures(id, menu, item)
+{
+    if(item == MENU_EXIT)
+    {
+        menu_destroy(menu);
+        ShowMainMenu(id);
+        return PLUGIN_HANDLED;
+    }
+
+    if(!CanUseJBMenu(id, true))
+    {
+        menu_destroy(menu);
+        return PLUGIN_HANDLED;
+    }
+
+    new info[8], name[64], access, cb;
+    menu_item_getinfo(menu, item, access, info, charsmax(info), name, charsmax(name), cb);
+    new key = str_to_num(info);
+    menu_destroy(menu);
+
+    switch(key)
+    {
+        case 1:
+        {
+            if(LibraryExists("felicia_donate", LibType_Library))
+                fc_donate_open(id);
+            else
+            {
+                Chat(id, "Donate sistemi şu anda yüklü değil.");
+                ShowExtraFeaturesMenu(id);
+            }
+        }
+    }
+
+    return PLUGIN_HANDLED;
+}
 
 // ============================================================
 // FPS SECENEKLERI
