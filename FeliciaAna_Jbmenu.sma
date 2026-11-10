@@ -299,6 +299,8 @@ new Float:g_flNoCTCellNext;
 #define JB_HUD_RIGHT_CHANNEL 2
 #define TASK_CRATE 10000
 #define TASK_LUCKY_REVIVE 11000
+#define TASK_PROF_ROBBERY 872000
+#define TASK_PROF_ZHONYA 873000
 
 #define MAX_RANKS 20
 #define TASK_COUNT 5
@@ -450,6 +452,8 @@ enum _:ProfessionType
     PROF_HOUSEWIFE,
     PROF_HPTHIEF,
     PROF_EXCHANGE,
+    PROF_ROBBER,
+    PROF_ZHONYA,
     PROF_COUNT
 };
 
@@ -550,7 +554,9 @@ new const g_ProfessionNames[PROF_COUNT][] = {
     "Sansli Adam",
     "Ev Hanimi",
     "HP Hirsizi",
-    "Döviz Bürosu"
+    "Döviz Bürosu",
+    "Soyguncu",
+    "Zhonya"
 };
 
 new const g_CrateNames[CRATE_COUNT][] = {
@@ -692,6 +698,18 @@ new g_iAdminCosCallback;
 new g_iRank[33];
 new g_iXP[33];
 new g_iProfession[33];
+new bool:g_bProfessionZhonyaActive[33];
+new bool:g_bProfessionZhonyaAddedFrozen[33];
+new Float:g_flProfessionZhonyaNextUse[33];
+new g_iProfessionZhonyaOldRenderFx[33];
+new g_iProfessionZhonyaOldRenderMode[33];
+new Float:g_flProfessionZhonyaOldRenderColor[33][3];
+new Float:g_flProfessionZhonyaOldRenderAmt[33];
+new g_iRobberyTarget[33], g_iRobberyThief[33];
+new g_iRobberyOwnerUserid[33], g_iRobberyTargetUserid[33];
+new Float:g_flRobberyStart[33], Float:g_flRobberyDuration[33];
+new Float:g_vecRobberyStartOrigin[33][3];
+new g_iProfessionRobberyHudSync, g_iProfessionWarningHudSync;
 new bool:g_bProfileLoaded[33];
 new g_iLifeSerial[33],g_iSpawnMenuLife[33],g_iSpawnMenuSession[33];
 new g_iProfessionLife[33],g_iProfessionSession[33],g_iProfessionApplied[33];
@@ -1069,6 +1087,8 @@ public plugin_init()
     g_iDonateMsgSetFov = get_user_msgid("SetFOV");
     g_iDonateHudSync = CreateHudSyncObj();
     g_iDonateAmountHudSync = CreateHudSyncObj();
+    g_iProfessionRobberyHudSync = CreateHudSyncObj();
+    g_iProfessionWarningHudSync = CreateHudSyncObj();
 
     g_iMarketCosCallback = menu_makecallback("CB_MarketCosmetic");
     g_bNoCTHadCT=NoCTHasGuard();
@@ -1123,6 +1143,7 @@ public client_putinserver(id)
 
 public client_disconnected(id)
 {
+    CancelProfessionActions(id);
     remove_task(PLAY_REWARD_TASK + id);
     remove_task(id + TASK_DONATE_SPRITE);
     remove_task(id + TASK_DONATE_REFRESH);
@@ -1196,6 +1217,7 @@ public pUserRegistered(id)
 
 public pUserExit(id)
 {
+    CancelProfessionActions(id);
     if(LibraryExists("fc_lr",LibType_Library)) fc_lr_account_changed(id);
     StopPreview(id,false);
     g_bGuestMode[id] = false;
@@ -1221,6 +1243,9 @@ public pUserLoggedMulti(id)
 
 ResetRuntime(id)
 {
+    CancelProfessionActions(id);
+    g_flProfessionZhonyaNextUse[id] = 0.0;
+    g_iRobberyThief[id] = 0;
     CancelSpawnWork(id);g_iLifeSerial[id]++;g_bProfileLoaded[id]=false;
     g_iProfessionApplied[id]=-1;
     FC_ResetPanelHud(id);
@@ -5449,6 +5474,17 @@ ShowProfessionMenu(id)
         CfgInt("PROF_HPTHIEF_SECONDS",8), CfgInt("PROF_HPTHIEF_HP",5));
     FC_MenuAddItem(menu, line, "6");
 
+    if(HasRole(id, ROLE_PRIME))
+    {
+        formatex(line, charsmax(line), "\\wSoyguncu \\d- E ile takim arkadasini %d sn icinde soy",
+            clamp(CfgInt("PROF_ROBBERY_SECONDS",5),1,15));
+        FC_MenuAddItem(menu, line, "8");
+
+        formatex(line, charsmax(line), "\\wZhonya \\d- %d sn hasar almaz / vuramaz",
+            clamp(CfgInt("PROF_ZHONYA_SECONDS",5),1,15));
+        FC_MenuAddItem(menu, line, "9");
+    }
+
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
 }
@@ -5483,6 +5519,12 @@ public H_Profession(id, menu, item)
     if(prof <= PROF_NONE || prof >= PROF_COUNT)
         return PLUGIN_HANDLED;
 
+    if((prof == PROF_ROBBER || prof == PROF_ZHONYA) && !HasRole(id, ROLE_PRIME))
+    {
+        Chat(id, "Soyguncu ve Zhonya meslekleri sadece ^4Prime ^1uyelerine ozeldir.");
+        return PLUGIN_HANDLED;
+    }
+
     g_iProfession[id] = prof;
     g_bProfessionChosenRound[id] = true;
     g_iLastProfessionTick[id] = get_systime();
@@ -5514,6 +5556,277 @@ ApplyProfessionSpawn(id)
             set_entvar(id, var_armorvalue, float(CfgInt("PROF_TERMINATOR_ARMOR",100)));
         }
     }
+}
+
+
+// ============================================================
+// PRIME MESLEKLERI: SOYGUNCU + ZHONYA
+// ============================================================
+
+bool:IsPrimeProfession(id, profession)
+{
+    return id >= 1 && id <= MaxClients
+        && is_user_connected(id)
+        && HasRole(id, ROLE_PRIME)
+        && g_iProfession[id] == profession;
+}
+
+StartProfessionRobbery(id)
+{
+    if(!IsPrimeProfession(id, PROF_ROBBER) || !is_user_alive(id)
+        || get_member(id, m_iTeam) != TEAM_TERRORIST || HW_Player(id))
+        return;
+
+    if(g_iRobberyTarget[id] > 0)
+    {
+        Chat(id, "Zaten bir soygun deniyorsun.");
+        return;
+    }
+
+    new target, body;
+    get_user_aiming(id, target, body, clamp(CfgInt("PROF_ROBBERY_RANGE",120),64,256));
+
+    if(target < 1 || target > MaxClients || target == id
+        || !is_user_alive(target)
+        || get_member(target, m_iTeam) != TEAM_TERRORIST)
+    {
+        Chat(id, "Soymak icin yakinindaki bir takim arkadasina nisan alip E tusuna bas.");
+        return;
+    }
+
+    if(g_iRobberyThief[target] > 0)
+    {
+        Chat(id, "Bu oyuncu zaten soyulmaya calisiliyor.");
+        return;
+    }
+
+    g_iRobberyTarget[id] = target;
+    g_iRobberyThief[target] = id;
+    g_iRobberyOwnerUserid[id] = get_user_userid(id);
+    g_iRobberyTargetUserid[id] = get_user_userid(target);
+    g_flRobberyStart[id] = get_gametime();
+    g_flRobberyDuration[id] = float(clamp(CfgInt("PROF_ROBBERY_SECONDS",5),1,15));
+    get_entvar(target, var_origin, g_vecRobberyStartOrigin[id]);
+
+    remove_task(id + TASK_PROF_ROBBERY);
+    set_task(0.1, "TaskProfessionRobbery", id + TASK_PROF_ROBBERY, _, _, "b");
+    Chat(id, "^4%n ^1adli takim arkadasini soymaya basladin. Hareket ederse iptal olur.", target);
+}
+
+public TaskProfessionRobbery(taskid)
+{
+    new id = taskid - TASK_PROF_ROBBERY;
+    if(id < 1 || id > MaxClients)
+        return;
+
+    new target = g_iRobberyTarget[id];
+    if(target < 1 || target > MaxClients
+        || !is_user_alive(id) || !is_user_alive(target)
+        || get_user_userid(id) != g_iRobberyOwnerUserid[id]
+        || get_user_userid(target) != g_iRobberyTargetUserid[id]
+        || !IsPrimeProfession(id, PROF_ROBBER)
+        || get_member(id, m_iTeam) != TEAM_TERRORIST
+        || get_member(target, m_iTeam) != TEAM_TERRORIST
+        || HW_Player(id) || HW_Player(target))
+    {
+        CancelProfessionRobbery(id, false);
+        return;
+    }
+
+    new Float:targetOrigin[3], Float:thiefOrigin[3];
+    get_entvar(target, var_origin, targetOrigin);
+    get_entvar(id, var_origin, thiefOrigin);
+
+    new Float:moveLimit = float(clamp(CfgInt("PROF_ROBBERY_MOVE_TOLERANCE",8),2,64));
+    if(get_distance_f(targetOrigin, g_vecRobberyStartOrigin[id]) > moveLimit)
+    {
+        CancelProfessionRobbery(id, true);
+        return;
+    }
+
+    new Float:range = float(clamp(CfgInt("PROF_ROBBERY_RANGE",120),64,256));
+    if(get_distance_f(thiefOrigin, targetOrigin) > range + 32.0)
+    {
+        CancelProfessionRobbery(id, true);
+        return;
+    }
+
+    new Float:elapsed = get_gametime() - g_flRobberyStart[id];
+    new Float:duration = g_flRobberyDuration[id];
+    if(duration < 0.1) duration = 0.1;
+    new Float:remaining = duration - elapsed;
+
+    if(elapsed >= duration)
+    {
+        new amount = clamp(CfgInt("PROF_ROBBERY_TL",5),1,1000);
+        StopProfessionRobbery(id);
+
+        if(g_iTL[target] < amount)
+        {
+            Chat(id, "^4%n ^1adli oyuncunun soyulabilecek kadar TL'si yok.", target);
+            Chat(target, "Soygun basarisiz oldu; yeterli TL'n yoktu.");
+            return;
+        }
+
+        g_iTL[target] -= amount;
+        g_iTL[id] = FC_CountAdd(g_iTL[id], amount);
+        SavePlayer(target);
+        SavePlayer(id);
+
+        Chat(id, "Soygun basarili! ^3+%d TL ^1kazandin.", amount);
+        Chat(target, "^4%n ^1senden ^3%d TL ^1caldi!", id, amount);
+        return;
+    }
+
+    new filled = clamp(floatround((elapsed / duration) * 20.0, floatround_floor),0,20);
+    new bar[24];
+    for(new i; i < 20; i++)
+        bar[i] = i < filled ? '|' : '-';
+    bar[20] = 0;
+
+    new tenths = max(0, floatround(remaining * 10.0, floatround_floor));
+    new count = max(1, floatround(remaining, floatround_ceil));
+
+    set_hudmessage(255, 205, 30, -1.0, 0.43, 0, 0.0, 0.14, 0.0, 0.0, 3);
+    ShowSyncHudMsg(id, g_iProfessionRobberyHudSync, "SOYGUN^n[%s]^n%d.%d sn", bar, tenths / 10, tenths % 10);
+
+    set_hudmessage(255, 35, 35, -1.0, 0.36, 0, 0.0, 0.14, 0.0, 0.0, 4);
+    ShowSyncHudMsg(target, g_iProfessionWarningHudSync, "SOYULUYORSUN!^nHAREKET ET!^n%d", count);
+}
+
+StopProfessionRobbery(id)
+{
+    if(id < 1 || id > MaxClients)
+        return;
+
+    new target = g_iRobberyTarget[id];
+    remove_task(id + TASK_PROF_ROBBERY);
+    g_iRobberyTarget[id] = 0;
+    g_iRobberyOwnerUserid[id] = 0;
+    g_iRobberyTargetUserid[id] = 0;
+    g_flRobberyStart[id] = 0.0;
+    g_flRobberyDuration[id] = 0.0;
+
+    if(is_user_connected(id))
+        ClearSyncHud(id, g_iProfessionRobberyHudSync);
+
+    if(target >= 1 && target <= MaxClients)
+    {
+        if(g_iRobberyThief[target] == id)
+            g_iRobberyThief[target] = 0;
+        if(is_user_connected(target))
+            ClearSyncHud(target, g_iProfessionWarningHudSync);
+    }
+}
+
+CancelProfessionRobbery(id, bool:notify = true)
+{
+    if(id < 1 || id > MaxClients || g_iRobberyTarget[id] <= 0)
+        return;
+
+    new target = g_iRobberyTarget[id];
+    StopProfessionRobbery(id);
+
+    if(notify)
+    {
+        if(is_user_connected(id))
+            Chat(id, "Soygun iptal edildi; hedef hareket etti veya mesafe acildi.");
+        if(target >= 1 && target <= MaxClients && is_user_connected(target))
+            Chat(target, "Hareket ettin; soyulma iptal edildi.");
+    }
+}
+
+CancelProfessionActions(id)
+{
+    if(id < 1 || id > MaxClients)
+        return;
+
+    new thief = g_iRobberyThief[id];
+    if(g_iRobberyTarget[id] > 0)
+        CancelProfessionRobbery(id, false);
+    if(thief >= 1 && thief <= MaxClients && g_iRobberyTarget[thief] == id)
+        CancelProfessionRobbery(thief, false);
+
+    EndProfessionZhonya(id, false);
+}
+
+StartProfessionZhonya(id)
+{
+    if(!IsPrimeProfession(id, PROF_ZHONYA) || !is_user_alive(id)
+        || get_member(id, m_iTeam) != TEAM_TERRORIST || HW_Player(id))
+        return;
+
+    if(g_bProfessionZhonyaActive[id])
+        return;
+
+    new Float:now = get_gametime();
+    if(now < g_flProfessionZhonyaNextUse[id])
+    {
+        new wait = max(1, floatround(g_flProfessionZhonyaNextUse[id] - now, floatround_ceil));
+        Chat(id, "Zhonya tekrar kullanilabilir: ^3%d sn", wait);
+        return;
+    }
+
+    new seconds = clamp(CfgInt("PROF_ZHONYA_SECONDS",5),1,15);
+    new cooldown = clamp(CfgInt("PROF_ZHONYA_COOLDOWN",30),seconds,180);
+    g_flProfessionZhonyaNextUse[id] = now + float(cooldown);
+    g_bProfessionZhonyaActive[id] = true;
+
+    new flags = get_entvar(id, var_flags);
+    g_bProfessionZhonyaAddedFrozen[id] = !(flags & FL_FROZEN);
+    if(g_bProfessionZhonyaAddedFrozen[id])
+        set_entvar(id, var_flags, flags | FL_FROZEN);
+
+    g_iProfessionZhonyaOldRenderFx[id] = get_entvar(id, var_renderfx);
+    g_iProfessionZhonyaOldRenderMode[id] = get_entvar(id, var_rendermode);
+    g_flProfessionZhonyaOldRenderAmt[id] = get_entvar(id, var_renderamt);
+    get_entvar(id, var_rendercolor, g_flProfessionZhonyaOldRenderColor[id]);
+
+    new Float:gold[3] = {255.0, 215.0, 0.0};
+    rg_set_user_rendering(id, kRenderFxGlowShell, gold, kRenderNormal, 22.0);
+
+    new Float:zero[3] = {0.0, 0.0, 0.0};
+    set_entvar(id, var_velocity, zero);
+    remove_task(id + TASK_PROF_ZHONYA);
+    set_task(float(seconds), "TaskEndProfessionZhonya", id + TASK_PROF_ZHONYA);
+
+    Chat(id, "Zhonya aktif! ^3%d saniye ^1boyunca hareket edemez, hasar veremez ve hasar alamazsin.", seconds);
+}
+
+public TaskEndProfessionZhonya(taskid)
+{
+    EndProfessionZhonya(taskid - TASK_PROF_ZHONYA, true);
+}
+
+EndProfessionZhonya(id, bool:notify = false)
+{
+    if(id < 1 || id > MaxClients)
+        return;
+
+    remove_task(id + TASK_PROF_ZHONYA);
+    if(!g_bProfessionZhonyaActive[id])
+        return;
+
+    g_bProfessionZhonyaActive[id] = false;
+
+    if(is_user_connected(id))
+    {
+        if(g_bProfessionZhonyaAddedFrozen[id])
+        {
+            new flags = get_entvar(id, var_flags);
+            set_entvar(id, var_flags, flags & ~FL_FROZEN);
+        }
+
+        set_entvar(id, var_renderfx, g_iProfessionZhonyaOldRenderFx[id]);
+        set_entvar(id, var_rendermode, g_iProfessionZhonyaOldRenderMode[id]);
+        set_entvar(id, var_renderamt, g_flProfessionZhonyaOldRenderAmt[id]);
+        set_entvar(id, var_rendercolor, g_flProfessionZhonyaOldRenderColor[id]);
+
+        if(notify && is_user_alive(id))
+            Chat(id, "Zhonya etkisi sona erdi.");
+    }
+
+    g_bProfessionZhonyaAddedFrozen[id] = false;
 }
 
 public TaskLuckyRespawn(taskid)
@@ -8322,6 +8635,7 @@ public EventRoundStart()
         if(!is_user_connected(id))
             continue;
 
+        CancelProfessionActions(id);
         g_bDonateUsedRound[id] = false;
         g_bSpecialKnifeBought[id] = false;
         g_bMainAdUsed[id] = false;
@@ -8359,6 +8673,7 @@ public EventRoundEnd()
 
 public HC_Spawn_Post(id)
 {
+    CancelProfessionActions(id);
     if(is_user_alive(id) && (get_member(id,m_iTeam)==TEAM_TERRORIST || get_member(id,m_iTeam)==TEAM_CT)) NoCTForgetJoin(id);
     StopPreview(id,false);CancelSpawnWork(id);g_iLifeSerial[id]++;g_iProfessionApplied[id]=-1;
     FC_InvalidateActivityCache();
@@ -8438,7 +8753,6 @@ public TaskSpawnMenu(taskid)
 
 public Fwd_PlayerPreThink(id)
 {
-    if(g_bCTHard) return FMRES_IGNORED;
     if(HW_Player(id)) return FMRES_IGNORED;
     if(!is_user_alive(id))
     {
@@ -8447,6 +8761,15 @@ public Fwd_PlayerPreThink(id)
         return FMRES_IGNORED;
     }
 
+    if(g_bProfessionZhonyaActive[id])
+    {
+        new Float:zero[3] = {0.0, 0.0, 0.0};
+        set_entvar(id, var_velocity, zero);
+        g_iAirJumps[id] = 0;
+        return FMRES_IGNORED;
+    }
+
+    if(g_bCTHard) return FMRES_IGNORED;
     if(get_entvar(id, var_movetype) != MOVETYPE_WALK)
         return FMRES_IGNORED;
 
@@ -8507,6 +8830,18 @@ public HC_Deploy_Pre(const weapon, szViewModel[], szWeaponModel[], anim, szAnimE
 
 public HC_TakeDamage_Pre(victim, inflictor, attacker, Float:damage, bits)
 {
+    if(victim >= 1 && victim <= MaxClients && g_bProfessionZhonyaActive[victim])
+    {
+        SetHookChainReturn(ATYPE_INTEGER, 0);
+        return HC_SUPERCEDE;
+    }
+
+    if(attacker >= 1 && attacker <= MaxClients && g_bProfessionZhonyaActive[attacker])
+    {
+        SetHookChainReturn(ATYPE_INTEGER, 0);
+        return HC_SUPERCEDE;
+    }
+
     if(HW_Player(victim) || HW_Player(attacker)) return;
     if(attacker < 1 || attacker > MaxClients || victim < 1 || victim > MaxClients || attacker == victim)
         return;
@@ -8540,6 +8875,7 @@ public HC_TakeDamage_Pre(victim, inflictor, attacker, Float:damage, bits)
 
 public HC_Killed_Post(victim, attacker)
 {
+    CancelProfessionActions(victim);
     if(victim>=1 && victim<=MaxClients) NoCTForgetJoin(victim);
     StopPreview(victim,false);CancelSpawnWork(victim);
     if(HW_Player(victim) || HW_Player(attacker)) return;
@@ -8722,6 +9058,8 @@ public EventCosmeticTeamInfo()
         return;
 
     g_iLastCosmeticTeam[id] = team;
+    if(team != _:TEAM_TERRORIST)
+        CancelProfessionActions(id);
     if(HW_Player(id))
         return;
 
@@ -9837,7 +10175,38 @@ public PreviewPackPost(es,e,ent,host,flags,player,pSet)
 }
 public PreviewCmdStart(id,uc,seed)
 {
-    if(id>=1 && id<=MaxClients && g_iPreviewCos[id]>=0) set_uc(uc,UC_Buttons,get_uc(uc,UC_Buttons)&~(IN_ATTACK|IN_ATTACK2));
+    if(id < 1 || id > MaxClients || !is_user_connected(id))
+        return FMRES_IGNORED;
+
+    new buttons = get_uc(uc, UC_Buttons);
+    new oldbuttons = get_entvar(id, var_oldbuttons);
+
+    if(g_bProfessionZhonyaActive[id])
+    {
+        buttons &= ~(IN_ATTACK | IN_ATTACK2 | IN_JUMP | IN_DUCK | IN_FORWARD
+            | IN_BACK | IN_MOVELEFT | IN_MOVERIGHT | IN_USE | IN_RELOAD);
+        set_uc(uc, UC_Buttons, buttons);
+        return FMRES_IGNORED;
+    }
+
+    if(is_user_alive(id) && (buttons & IN_USE) && !(oldbuttons & IN_USE) && !HW_Player(id))
+    {
+        if(g_iProfession[id] == PROF_ROBBER)
+        {
+            StartProfessionRobbery(id);
+            buttons &= ~IN_USE;
+        }
+        else if(g_iProfession[id] == PROF_ZHONYA)
+        {
+            StartProfessionZhonya(id);
+            buttons &= ~IN_USE;
+        }
+    }
+
+    if(g_iPreviewCos[id] >= 0)
+        buttons &= ~(IN_ATTACK | IN_ATTACK2);
+
+    set_uc(uc, UC_Buttons, buttons);
     return FMRES_IGNORED;
 }
 DrawPreviewEffect(id,idx)
