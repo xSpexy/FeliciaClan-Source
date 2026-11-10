@@ -5480,7 +5480,7 @@ ShowProfessionMenu(id)
             clamp(CfgInt("PROF_ROBBERY_SECONDS",5),1,15), clamp(CfgInt("PROF_ROBBERY_TL",5),1,1000));
         FC_MenuAddItem(menu, line, "8");
 
-        formatex(line, charsmax(line), "\wZhonya \d- %d sn koruma / %d sn bekleme",
+        formatex(line, charsmax(line), "\wZhonya \y[Prime] \d[E] - %d sn koruma / %d sn bekleme",
             clamp(CfgInt("PROF_ZHONYA_SECONDS",5),1,15), clamp(CfgInt("PROF_ZHONYA_COOLDOWN",30),1,180));
         FC_MenuAddItem(menu, line, "9");
     }
@@ -5791,6 +5791,17 @@ StartProfessionZhonya(id)
     new Float:gold[3] = {255.0, 215.0, 0.0};
     rg_set_user_rendering(id, kRenderFxGlowShell, gold, kRenderNormal, 22.0);
 
+    // Zhonya etkinlesince oyuncuya hafif, yari saydam sari ekran efekti.
+    message_begin(MSG_ONE, get_user_msgid("ScreenFade"), _, id);
+    write_short(1<<10);
+    write_short(seconds * (1<<12));
+    write_short(0);
+    write_byte(255);
+    write_byte(225);
+    write_byte(80);
+    write_byte(75);
+    message_end();
+
     new Float:zero[3] = {0.0, 0.0, 0.0};
     set_entvar(id, var_velocity, zero);
     remove_task(id + TASK_PROF_ZHONYA);
@@ -5827,6 +5838,17 @@ EndProfessionZhonya(id, bool:notify = false)
         set_entvar(id, var_rendermode, g_iProfessionZhonyaOldRenderMode[id]);
         set_entvar(id, var_renderamt, g_flProfessionZhonyaOldRenderAmt[id]);
         set_entvar(id, var_rendercolor, g_flProfessionZhonyaOldRenderColor[id]);
+
+        // Zhonya bitince sari ekran efektini temizle.
+        message_begin(MSG_ONE, get_user_msgid("ScreenFade"), _, id);
+        write_short(1<<10);
+        write_short(0);
+        write_short(1);
+        write_byte(0);
+        write_byte(0);
+        write_byte(0);
+        write_byte(0);
+        message_end();
 
         if(notify && is_user_alive(id))
             Chat(id, "Zhonya etkisi sona erdi.");
