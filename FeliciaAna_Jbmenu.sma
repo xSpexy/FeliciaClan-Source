@@ -8848,9 +8848,9 @@ public HC_TakeDamage_Pre(victim, inflictor, attacker, Float:damage, bits)
         return HC_SUPERCEDE;
     }
 
-    if(HW_Player(victim) || HW_Player(attacker)) return;
+    if(HW_Player(victim) || HW_Player(attacker)) return HC_CONTINUE;
     if(attacker < 1 || attacker > MaxClients || victim < 1 || victim > MaxClients || attacker == victim)
-        return;
+        return HC_CONTINUE;
 
     if(g_bDoubleDamage[attacker]) damage *= 2.0;
     if(g_bDamageShield[victim]) damage *= 0.5;
@@ -8877,6 +8877,7 @@ public HC_TakeDamage_Pre(victim, inflictor, attacker, Float:damage, bits)
     }
 
     SetHookChainArg(4, ATYPE_FLOAT, damage);
+    return HC_CONTINUE;
 }
 
 public HC_Killed_Post(victim, attacker)
