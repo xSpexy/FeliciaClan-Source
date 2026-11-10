@@ -8182,7 +8182,7 @@ public OnPickup(id,item) {
         if(weapon==WEAPON_KNIFE || weapon==WEAPON_TMP) return HC_CONTINUE;
         SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;
     }
-    if(IsEntrant(id) && g_game!=CT_GAME_HOGWARTS && g_game!=CT_GAME_MILYONER && get_member(item,m_iId)!=WEAPON_KNIFE && (g_game==CT_GAME_KNIFE || g_game==CT_GAME_REVERSE || (g_game==CT_GAME_ZOMBIE || g_game==CT_GAME_SPARTA) || !CombatGame())) {SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;}
+    if(IsEntrant(id) && g_game!=CT_GAME_HOGWARTS && g_game!=CT_GAME_MILYONER && get_member(item,m_iId)!=WEAPON_KNIFE && (g_game==CT_GAME_KNIFE || g_game==CT_GAME_REVERSE || g_game==CT_GAME_SUMO || (g_game==CT_GAME_ZOMBIE || g_game==CT_GAME_SPARTA) || !CombatGame())) {SetHookChainReturn(ATYPE_INTEGER,0);return HC_SUPERCEDE;}
     return HC_CONTINUE;
 }
 
@@ -8329,7 +8329,7 @@ public GameTick() {
         case CT_GAME_SUMO: TickSumoArena(now);
         case CT_GAME_DODGEBALL: TickDodgeball();
     }
-    if(g_game==CT_GAME_HOT_POTATO || (g_game==CT_GAME_INFECTION && g_phase) || g_game==CT_GAME_SUMO) CheckNearbyContacts();
+    if(g_game==CT_GAME_HOT_POTATO || (g_game==CT_GAME_INFECTION && g_phase)) CheckNearbyContacts();
     if(now>=g_nextSecond) {
         g_nextSecond=now+1.0;
         if(g_game==CT_GAME_HUNGER) TickHunger(now);
@@ -8394,7 +8394,6 @@ public OnTouchPlayers(a,b) {
         if(b==g_gameBoss && IsEntrant(a)) {Eliminate(a,"Karadeliğin merkezine dokundu");return;}
     }
     if(!IsEntrant(a) || !IsEntrant(b)) return;
-    if(g_game==CT_GAME_SUMO) {SumoKnockback(a,b);return;}
     if(g_game==CT_GAME_HOT_POTATO) {if(a==g_bomb) PassBomb(b);else if(b==g_bomb) PassBomb(a);}
     else if(g_game==CT_GAME_INFECTION) {
         if(get_gametime()<g_graceEnd) return;
@@ -8451,8 +8450,8 @@ stock TronColor(id,&r,&g,&b) {
 stock Float:PointSegmentDistanceSq(const Float:p[3],const Float:a[3],const Float:b[3]) {
     new Float:vx=b[0]-a[0],Float:vy=b[1]-a[1],Float:vz=b[2]-a[2];
     new Float:wx=p[0]-a[0],Float:wy=p[1]-a[1],Float:wz=p[2]-a[2];
-    new Float:len=vx*vx+vy*vy+vz*vz,newFloatDummy;
-    new Float:t;
+    new Float:len=vx*vx+vy*vy+vz*vz;
+    new Float:t=0.0;
     if(len>0.001) t=(wx*vx+wy*vy+wz*vz)/len;
     t=floatmax(0.0,floatmin(1.0,t));
     new Float:dx=p[0]-(a[0]+t*vx),Float:dy=p[1]-(a[1]+t*vy),Float:dz=p[2]-(a[2]+t*vz);
@@ -8506,6 +8505,7 @@ stock TickMagnetic(Float:now) {
         new Float:dx=boss[0]-target[0],Float:dy=boss[1]-target[1],Float:dz=boss[2]+24.0-target[2];
         new Float:dist=dx*dx+dy*dy+dz*dz;
         if(dist>1800.0*1800.0 || dist<1.0 || !MagnetLineClear(start,target)) continue;
+        if(dist<55.0*55.0) {Eliminate(id,"Karadeliğin merkezine dokundu");continue;}
         new Float:length=floatsqroot(dist),Float:force=dist<62500.0?720.0:500.0;
         new Float:velocity[3];velocity[0]=dx/length*force;velocity[1]=dy/length*force;velocity[2]=dz/length*force+90.0;
         set_entvar(id,var_velocity,velocity);
