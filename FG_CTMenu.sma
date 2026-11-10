@@ -8531,10 +8531,11 @@ stock InitSumoArena() {
     free_tr2(tr);g_sumoCenter[0]=ground[0];g_sumoCenter[1]=ground[1];g_sumoFloor=ground[2];
     g_sumoRadius=float(g_cfg[CFG_SUMO_RADIUS]);g_sumoNextDraw=0.0;
     new count=CountEntrants(),index;
+    new Float:spawnRadius=floatmin(180.0,floatmax(90.0,g_sumoRadius*0.45));
     for(new id=1;id<=MaxClients;id++) if(IsEntrant(id)) {
         new Float:angle=360.0*float(index)/float(max(1,count));index++;
-        new Float:dest[3];dest[0]=g_sumoCenter[0]+floatcos(angle,degrees)*80.0;
-        dest[1]=g_sumoCenter[1]+floatsin(angle,degrees)*80.0;dest[2]=g_sumoFloor+36.0;
+        new Float:dest[3];dest[0]=g_sumoCenter[0]+floatcos(angle,degrees)*spawnRadius;
+        dest[1]=g_sumoCenter[1]+floatsin(angle,degrees)*spawnRadius;dest[2]=g_sumoFloor+36.0;
         set_entvar(id,var_origin,dest);set_entvar(id,var_velocity,Float:{0.0,0.0,0.0});
         rg_remove_all_items(id);rg_give_item(id,"weapon_knife");engclient_cmd(id,"weapon_knife");
     }
