@@ -5476,12 +5476,12 @@ ShowProfessionMenu(id)
 
     if(HasRole(id, ROLE_PRIME))
     {
-        formatex(line, charsmax(line), "\wSoyguncu \d- E ile takim arkadasini %d sn icinde soy",
-            clamp(CfgInt("PROF_ROBBERY_SECONDS",5),1,15));
+        formatex(line, charsmax(line), "\wSoyguncu \d- %d sn icinde +%d TL cal",
+            clamp(CfgInt("PROF_ROBBERY_SECONDS",5),1,15), clamp(CfgInt("PROF_ROBBERY_TL",5),1,1000));
         FC_MenuAddItem(menu, line, "8");
 
-        formatex(line, charsmax(line), "\wZhonya \d- %d sn hasar almaz / vuramaz",
-            clamp(CfgInt("PROF_ZHONYA_SECONDS",5),1,15));
+        formatex(line, charsmax(line), "\wZhonya \d- %d sn koruma / %d sn bekleme",
+            clamp(CfgInt("PROF_ZHONYA_SECONDS",5),1,15), clamp(CfgInt("PROF_ZHONYA_COOLDOWN",30),1,180));
         FC_MenuAddItem(menu, line, "9");
     }
 
@@ -10201,12 +10201,14 @@ public PreviewCmdStart(id,uc,seed)
         if(g_iProfession[id] == PROF_ROBBER)
         {
             StartProfessionRobbery(id);
-            buttons &= ~IN_USE;
+            if(g_iRobberyTarget[id] > 0)
+                buttons &= ~IN_USE;
         }
         else if(g_iProfession[id] == PROF_ZHONYA)
         {
             StartProfessionZhonya(id);
-            buttons &= ~IN_USE;
+            if(g_bProfessionZhonyaActive[id])
+                buttons &= ~IN_USE;
         }
     }
 
