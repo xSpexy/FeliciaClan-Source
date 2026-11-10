@@ -5583,6 +5583,12 @@ StartProfessionRobbery(id)
         return;
     }
 
+    if(g_iRobberyThief[id] > 0)
+    {
+        Chat(id, "Soyulurken baska bir oyuncuyu soymaya calisamazsin.");
+        return;
+    }
+
     new target, body;
     get_user_aiming(id, target, body, clamp(CfgInt("PROF_ROBBERY_RANGE",120),64,256));
 
@@ -5730,9 +5736,9 @@ CancelProfessionRobbery(id, bool:notify = true)
     if(notify)
     {
         if(is_user_connected(id))
-            Chat(id, "Soygun iptal edildi; hedef hareket etti veya mesafe acildi.");
+            Chat(id, "Soygun iptal edildi; oyunculardan biri hareket etti veya mesafe acildi.");
         if(target >= 1 && target <= MaxClients && is_user_connected(target))
-            Chat(target, "Hareket ettin; soyulma iptal edildi.");
+            Chat(target, "Soyulma iptal edildi; oyunculardan biri hareket etti.");
     }
 }
 
@@ -9831,6 +9837,7 @@ bool:HW_Player(id)
 
 PrepareCTGamePlayer(id)
 {
+    CancelProfessionActions(id);
     StopPreview(id,false);
     // Settle paid rolls before the provider saves health, weapons and model.
     if(task_exists(id + TASK_CRATE))
