@@ -53,8 +53,6 @@ native bool:fc_ct_hud_visible(player);
 native fc_ct_game_id();
 native bool:fc_ct_rocket_is_player(player);
 native bool:fc_ct_rocket_active();
-// Optional native exported by the standalone donate plugin.
-native fc_donate_open(player);
 new bool:g_bRocketAPI;
 
 /* === fc_hud_frame: SMA icine alinmis kod === */
@@ -583,6 +581,42 @@ new g_iUID[33];
 new g_iTL[33];
 new g_iCoin[33];
 new bool:g_bDonateMediaEnabled[33];
+
+#define DONATE_HISTORY_LIMIT 100
+#define DONATE_MESSAGE_LEN 127
+#define TASK_DONATE_SPRITE 779000
+#define TASK_DONATE_REFRESH 779100
+
+enum _:DonateCurrencyType
+{
+    DONATE_CURRENCY_TL = 0,
+    DONATE_CURRENCY_COIN,
+    DONATE_CURRENCY_COUNT
+};
+
+new g_iDonateCurrency[33];
+new g_iDonateAmount[33];
+new g_szDonateMessage[33][DONATE_MESSAGE_LEN + 1];
+new bool:g_bDonateUsedRound[33];
+new bool:g_bDonateSpriteActive[33];
+new bool:g_bDonateSpriteSending[33];
+new g_iDonateSpriteCurrency[33];
+new g_iDonateSpriteTier[33];
+new g_iDonateHistorySerial;
+new g_iDonateHudSync;
+new g_iDonateMsgWeaponList;
+new g_iDonateMsgCurWeapon;
+new g_iDonateMsgSetFov;
+
+new g_iDonateTierFirstMax[DONATE_CURRENCY_COUNT];
+new g_iDonateTierSecondMax[DONATE_CURRENCY_COUNT];
+new g_iDonateMaxAmount[DONATE_CURRENCY_COUNT];
+new g_szDonateSpriteName[DONATE_CURRENCY_COUNT][3][96];
+new g_szDonateSoundName[DONATE_CURRENCY_COUNT][3][96];
+new g_szDonateWeaponName[DONATE_CURRENCY_COUNT][3][32];
+new bool:g_bDonateSpriteReady[DONATE_CURRENCY_COUNT][3];
+new bool:g_bDonateSoundReady[DONATE_CURRENCY_COUNT][3];
+
 new g_iPlayRewardMinutes[33];
 #define PLAY_REWARD_TASK 28000
 #define PLAY_REWARD_MINUTES 30
@@ -798,7 +832,7 @@ public plugin_natives()
 }
 public OptionalCTMenuNative(const name[], index, trap)
 {
-    if(!trap && (contain(name,"fc_ct_")==0 || contain(name,"fc_lr_")==0 || contain(name,"fc_donate_")==0)) return PLUGIN_HANDLED;
+    if(!trap && (contain(name,"fc_ct_")==0 || contain(name,"fc_lr_")==0)) return PLUGIN_HANDLED;
     return PLUGIN_CONTINUE;
 }
 
@@ -865,6 +899,7 @@ public N_AddCoin(plugin, params)
 public plugin_precache()
 {
     LoadConfig();
+    DonatePrecacheMedia();
     PrecacheNotificationSounds();
     PrecacheConfiguredAssets();
 }
@@ -1007,6 +1042,8 @@ public plugin_init()
     register_clcmd("FC_Raffle_RewardAmount", "CmdRaffleRewardAmount");
     register_clcmd("FC_Raffle_FeeAmount", "CmdRaffleFeeAmount");
     register_clcmd("FC_Raffle_EndValue", "CmdRaffleEndValue");
+    register_clcmd("FC_DonateAmount", "CmdDonateAmount");
+    register_clcmd("FC_DonateMessage", "CmdDonateMessage");
 
     RegisterHookChain(RG_CBasePlayer_Spawn, "HC_Spawn_Post", true);
     RegisterHookChain(RG_HandleMenu_ChooseAppearance,"HC_NoCTAppearance_Post",true);
@@ -1023,6 +1060,13 @@ public plugin_init()
     register_logevent("EventRoundStart", 2, "1=Round_Start");
     register_logevent("EventRoundEnd", 2, "1=Round_End");
     register_event("TeamInfo", "EventCosmeticTeamInfo", "a");
+    register_event("CurWeapon", "EventDonateCurWeapon", "be", "1=1");
+    register_event("SetFOV", "EventDonateSetFOV", "be");
+
+    g_iDonateMsgWeaponList = get_user_msgid("WeaponList");
+    g_iDonateMsgCurWeapon = get_user_msgid("CurWeapon");
+    g_iDonateMsgSetFov = get_user_msgid("SetFOV");
+    g_iDonateHudSync = CreateHudSyncObj();
 
     g_iMarketCosCallback = menu_makecallback("CB_MarketCosmetic");
     g_bNoCTHadCT=NoCTHasGuard();
@@ -1036,6 +1080,7 @@ public plugin_init()
     g_iVault = nvault_open(VAULT_NAME);
     if(g_iVault == INVALID_HANDLE)
         set_fail_state("FeliciaClan JBMenu nVault acilamadi.");
+    DonateLoadHistoryCounter();
     RaffleLoadAll();
     set_task(1.0, "RaffleTick", FC_RAFFLE_TASK, "", 0, "b");
 }
@@ -1066,6 +1111,7 @@ public plugin_end()
 public client_putinserver(id)
 {
     ResetRuntime(id);
+    g_bDonateUsedRound[id] = false;
     g_iPlayRewardMinutes[id] = 0;
     remove_task(PLAY_REWARD_TASK + id);
     set_task(60.0, "TaskPlayReward", PLAY_REWARD_TASK + id, _, _, "b");
@@ -1076,6 +1122,11 @@ public client_putinserver(id)
 public client_disconnected(id)
 {
     remove_task(PLAY_REWARD_TASK + id);
+    remove_task(id + TASK_DONATE_SPRITE);
+    remove_task(id + TASK_DONATE_REFRESH);
+    g_bDonateSpriteActive[id] = false;
+    g_bDonateSpriteSending[id] = false;
+    g_bDonateUsedRound[id] = false;
     g_iPlayRewardMinutes[id] = 0;
     StopPreview(id,false);
     if(g_iUID[id] > 0)
@@ -1179,6 +1230,13 @@ ResetRuntime(id)
     g_iTL[id] = 0;
     g_iCoin[id] = 0;
     g_bDonateMediaEnabled[id] = true;
+    g_iDonateCurrency[id] = DONATE_CURRENCY_TL;
+    g_iDonateAmount[id] = 0;
+    g_szDonateMessage[id][0] = 0;
+    remove_task(id + TASK_DONATE_SPRITE);
+    remove_task(id + TASK_DONATE_REFRESH);
+    g_bDonateSpriteActive[id] = false;
+    g_bDonateSpriteSending[id] = false;
     g_iTLSpent[id]=g_iCoinEarned[id]=g_iCoinSpent[id]=g_iExchangeRemainder[id]=0;
     g_iHPBought[id]=g_iBonusDailyNext[id]=g_iBonusPlayStamp[id]=0;g_bBonusRound[id]=false;
     g_iPreviewCos[id]=-1;g_iPreviewUID[id]=g_iPreviewCamera[id]=g_iPreviewProp[id]=0;g_iPreviewPose[id]=-1;g_flPreviewPoseStart[id]=0.0;g_bDetailHud[id]=false;g_iDetailStamp[id]=-1;
@@ -1872,6 +1930,720 @@ public H_Main(id, menu, item)
 
 
 // ============================================================
+// DONATE SISTEMI - JBMenu icinde, harici plugin gerektirmez.
+// TL/Coin bakiyesinden dusurur; aliciya bakiye aktarimi yapmaz.
+// ============================================================
+
+DonateCurrencyName(currency, output[], outputLen)
+{
+    copy(output, outputLen, currency == DONATE_CURRENCY_COIN ? "Coin" : "TL");
+}
+
+DonateLoadHistoryCounter()
+{
+    if(g_iVault == INVALID_HANDLE) return;
+    new value[32];
+    g_iDonateHistorySerial = nvault_get(g_iVault, "DONATE_HISTORY_COUNT", value, charsmax(value))
+        ? max(0, str_to_num(value)) : 0;
+}
+
+DonatePrecacheMedia()
+{
+    new key[64], path[192], spriteName[96], soundName[96], prefix[8];
+    new const weaponNames[DONATE_CURRENCY_COUNT][3][32] =
+    {
+        { "weapon_fcdonate_tl1", "weapon_fcdonate_tl2", "weapon_fcdonate_tl3" },
+        { "weapon_fcdonate_coin1", "weapon_fcdonate_coin2", "weapon_fcdonate_coin3" }
+    };
+
+    for(new currency = 0; currency < DONATE_CURRENCY_COUNT; currency++)
+    {
+        copy(prefix, charsmax(prefix), currency == DONATE_CURRENCY_COIN ? "COIN" : "TL");
+
+        formatex(key, charsmax(key), "DONATE_%s_TIER1_MAX", prefix);
+        g_iDonateTierFirstMax[currency] = max(0, CfgInt(key, 10));
+        formatex(key, charsmax(key), "DONATE_%s_TIER2_MAX", prefix);
+        g_iDonateTierSecondMax[currency] = max(g_iDonateTierFirstMax[currency], CfgInt(key, 50));
+        formatex(key, charsmax(key), "DONATE_%s_MAX_AMOUNT", prefix);
+        g_iDonateMaxAmount[currency] = max(0, CfgInt(key, 0));
+
+        for(new tier = 0; tier < 3; tier++)
+        {
+            copy(g_szDonateWeaponName[currency][tier], charsmax(g_szDonateWeaponName[][]), weaponNames[currency][tier]);
+
+            formatex(key, charsmax(key), "DONATE_%s_TIER%d_SPRITE", prefix, tier + 1);
+            CfgStr(key, spriteName, charsmax(spriteName), "FeliciaClan/donate_money");
+            copy(g_szDonateSpriteName[currency][tier], charsmax(g_szDonateSpriteName[][]), spriteName);
+
+            formatex(path, charsmax(path), "sprites/%s.spr", spriteName);
+            if(file_exists(path))
+            {
+                if(DonateWriteWeaponDefinition(g_szDonateWeaponName[currency][tier], spriteName))
+                {
+                    precache_generic(path);
+                    g_bDonateSpriteReady[currency][tier] = true;
+                }
+            }
+
+            formatex(key, charsmax(key), "DONATE_%s_TIER%d_SOUND", prefix, tier + 1);
+            CfgStr(key, soundName, charsmax(soundName), "FeliciaClan/donate_money.wav");
+            copy(g_szDonateSoundName[currency][tier], charsmax(g_szDonateSoundName[][]), soundName);
+
+            formatex(path, charsmax(path), "sound/%s", soundName);
+            if(soundName[0] && file_exists(path))
+            {
+                precache_sound(soundName);
+                g_bDonateSoundReady[currency][tier] = true;
+            }
+        }
+    }
+}
+
+// GoldSrc weapon HUD definition: the sprite is drawn by the client's
+// crosshair renderer at a fixed upper-right screen offset. Weapon ID 2 is
+// unused by Counter-Strike and is only sent to the client during the notice.
+bool:DonateWriteWeaponDefinition(const weaponName[], const spriteName[])
+{
+    new path[128];
+    formatex(path, charsmax(path), "sprites/%s.txt", weaponName);
+
+    new file = fopen(path, "wt");
+    if(!file) return false;
+
+    fputs(file, "2^n");
+    fprintf(file, "crosshair 320 %s 90 -60 128 80^n", spriteName);
+    fprintf(file, "crosshair 640 %s 230 -180 128 80^n", spriteName);
+    fclose(file);
+
+    precache_generic(path);
+    return true;
+}
+
+DonateGetTier(currency, amount)
+{
+    if(amount <= g_iDonateTierFirstMax[currency]) return 0;
+    if(amount <= g_iDonateTierSecondMax[currency]) return 1;
+    return 2;
+}
+
+DonateGetFov(id)
+{
+    new Float:fov;
+    pev(id, pev_fov, fov);
+    if(fov < 1.0) return 90;
+    return clamp(floatround(fov), 1, 180);
+}
+
+DonateSendFov(id, fov)
+{
+    if(!g_iDonateMsgSetFov) return;
+    message_begin(MSG_ONE, g_iDonateMsgSetFov, _, id);
+    write_byte(fov);
+    message_end();
+}
+
+DonateSendSprite(id)
+{
+    if(id < 1 || id > MaxClients || !is_user_connected(id)
+        || !g_bDonateSpriteActive[id] || !g_bDonateMediaEnabled[id]) return;
+
+    new currency = g_iDonateSpriteCurrency[id];
+    new tier = g_iDonateSpriteTier[id];
+    if(currency < 0 || currency >= DONATE_CURRENCY_COUNT || tier < 0 || tier > 2
+        || !g_bDonateSpriteReady[currency][tier] || !is_user_alive(id)) return;
+
+    new fov = DonateGetFov(id);
+    // Do not override a live sniper/AUG/SG552 scope. The SetFOV hook
+    // will redraw the sprite when the player returns to normal FOV.
+    if(fov < 90) return;
+
+    g_bDonateSpriteSending[id] = true;
+
+    message_begin(MSG_ONE, g_iDonateMsgWeaponList, _, id);
+    write_string(g_szDonateWeaponName[currency][tier]);
+    write_byte(-1);
+    write_byte(0);
+    write_byte(-1);
+    write_byte(0);
+    write_byte(0);
+    write_byte(11);
+    write_byte(2);
+    write_byte(0);
+    message_end();
+
+    DonateSendFov(id, 89);
+
+    message_begin(MSG_ONE, g_iDonateMsgCurWeapon, _, id);
+    write_byte(1);
+    write_byte(2);
+    write_byte(0);
+    message_end();
+
+    DonateSendFov(id, fov);
+    g_bDonateSpriteSending[id] = false;
+}
+
+DonateRestoreWeaponHud(id)
+{
+    if(id < 1 || id > MaxClients || !is_user_connected(id)) return;
+
+    new clip, backpack, weapon = get_user_weapon(id, clip, backpack);
+    new fov = DonateGetFov(id);
+
+    g_bDonateSpriteSending[id] = true;
+    if(weapon > 0 && g_iDonateMsgCurWeapon)
+    {
+        message_begin(MSG_ONE, g_iDonateMsgCurWeapon, _, id);
+        write_byte(1);
+        write_byte(weapon);
+        write_byte(clip);
+        message_end();
+    }
+    DonateSendFov(id, fov);
+    g_bDonateSpriteSending[id] = false;
+}
+
+DonateClearSprite(id)
+{
+    if(id < 1 || id > MaxClients) return;
+    remove_task(id + TASK_DONATE_SPRITE);
+    remove_task(id + TASK_DONATE_REFRESH);
+
+    new bool:wasActive = g_bDonateSpriteActive[id];
+    g_bDonateSpriteActive[id] = false;
+    if(wasActive) DonateRestoreWeaponHud(id);
+}
+
+DonateShowSprite(id, currency, tier)
+{
+    if(id < 1 || id > MaxClients || !is_user_connected(id)
+        || !g_bDonateMediaEnabled[id]) return;
+    if(!g_bDonateSpriteReady[currency][tier]) return;
+
+    g_iDonateSpriteCurrency[id] = currency;
+    g_iDonateSpriteTier[id] = tier;
+    g_bDonateSpriteActive[id] = true;
+
+    remove_task(id + TASK_DONATE_SPRITE);
+    remove_task(id + TASK_DONATE_REFRESH);
+    DonateSendSprite(id);
+    set_task(4.0, "TaskDonateClearSprite", id + TASK_DONATE_SPRITE);
+}
+
+public TaskDonateClearSprite(taskid)
+{
+    new id = taskid - TASK_DONATE_SPRITE;
+    if(id < 1 || id > MaxClients) return;
+    DonateClearSprite(id);
+}
+
+public TaskDonateRefreshSprite(taskid)
+{
+    new id = taskid - TASK_DONATE_REFRESH;
+    if(id < 1 || id > MaxClients || !g_bDonateSpriteActive[id]) return;
+    DonateSendSprite(id);
+}
+
+public EventDonateCurWeapon(id)
+{
+    if(id < 1 || id > MaxClients || !g_bDonateSpriteActive[id]
+        || g_bDonateSpriteSending[id] || !g_bDonateMediaEnabled[id]) return;
+    if(read_data(2) == 2) return;
+    DonateSendSprite(id);
+}
+
+public EventDonateSetFOV(id)
+{
+    if(id < 1 || id > MaxClients || !g_bDonateSpriteActive[id]
+        || g_bDonateSpriteSending[id] || !g_bDonateMediaEnabled[id]) return;
+
+    if(read_data(1) >= 90)
+    {
+        remove_task(id + TASK_DONATE_REFRESH);
+        set_task(0.05, "TaskDonateRefreshSprite", id + TASK_DONATE_REFRESH);
+    }
+}
+
+DonateHistorySave(id, amount, currency, const donorName[], const message[])
+{
+    if(g_iVault == INVALID_HANDLE) return;
+
+    g_iDonateHistorySerial++;
+    new slot = (g_iDonateHistorySerial - 1) % DONATE_HISTORY_LIMIT;
+    new key[96], value[192];
+
+    formatex(key, charsmax(key), "DONATE_%d_NAME", slot);
+    nvault_set(g_iVault, key, donorName);
+
+    formatex(key, charsmax(key), "DONATE_%d_MESSAGE", slot);
+    nvault_set(g_iVault, key, message);
+
+    formatex(key, charsmax(key), "DONATE_%d_AMOUNT", slot);
+    num_to_str(amount, value, charsmax(value));
+    nvault_set(g_iVault, key, value);
+
+    formatex(key, charsmax(key), "DONATE_%d_CURRENCY", slot);
+    num_to_str(currency, value, charsmax(value));
+    nvault_set(g_iVault, key, value);
+
+    formatex(key, charsmax(key), "DONATE_%d_TIME", slot);
+    num_to_str(get_systime(), value, charsmax(value));
+    nvault_set(g_iVault, key, value);
+
+    num_to_str(g_iDonateHistorySerial, value, charsmax(value));
+    nvault_set(g_iVault, "DONATE_HISTORY_COUNT", value);
+}
+
+DonateHistoryRead(serial, const field[], output[], outputLen)
+{
+    output[0] = 0;
+    if(g_iVault == INVALID_HANDLE || serial < 1 || serial > g_iDonateHistorySerial) return;
+
+    new slot = (serial - 1) % DONATE_HISTORY_LIMIT;
+    new key[96];
+    formatex(key, charsmax(key), "DONATE_%d_%s", slot, field);
+    nvault_get(g_iVault, key, output, outputLen);
+}
+
+ShowDonateMainMenu(id)
+{
+    if(!CanUseJBMenu(id, true)) return;
+
+    new menu = FC_MenuCreate("\\wDonate Sistemi", "H_DonateMain");
+    if(get_member(id, m_iTeam) == TEAM_TERRORIST)
+        FC_MenuAddItem(menu, "\\wBağış Gönder", "1");
+    if(HasRole(id, ROLE_MANAGER))
+        FC_MenuAddItem(menu, "\\wGeçmiş Bağışlar", "2");
+
+    if(get_member(id, m_iTeam) != TEAM_TERRORIST && !HasRole(id, ROLE_MANAGER))
+        FC_MenuAddItem(menu, "\\dBağış göndermek için Mahkûm olmalısın", "0");
+
+    FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
+    menu_display(id, menu);
+}
+
+public H_DonateMain(id, menu, item)
+{
+    if(item == MENU_EXIT)
+    {
+        menu_destroy(menu);
+        ShowExtraFeaturesMenu(id);
+        return PLUGIN_HANDLED;
+    }
+
+    new info[8], name[64], access, callback;
+    menu_item_getinfo(menu, item, access, info, charsmax(info), name, charsmax(name), callback);
+    new key = str_to_num(info);
+    menu_destroy(menu);
+
+    if(key == 1)
+    {
+        if(get_member(id, m_iTeam) != TEAM_TERRORIST)
+        {
+            Chat(id, "Bağış göndermek için Mahkûm takımında olmalısın.");
+            ShowDonateMainMenu(id);
+            return PLUGIN_HANDLED;
+        }
+        if(g_iUID[id] <= 0 || !g_bProfileLoaded[id] || g_bGuestMode[id])
+        {
+            Chat(id, "Bağış göndermek için hesabına giriş yapmalısın.");
+            ShowAccountMenu(id);
+            return PLUGIN_HANDLED;
+        }
+        if(g_bDonateUsedRound[id])
+        {
+            Chat(id, "Bu rauntta zaten bağış gönderdin. Yeni rauntta tekrar gönderebilirsin.");
+            ShowDonateMainMenu(id);
+            return PLUGIN_HANDLED;
+        }
+        ShowDonateCurrencyMenu(id);
+    }
+    else if(key == 2)
+    {
+        if(HasRole(id, ROLE_MANAGER)) ShowDonateHistoryMenu(id);
+        else ShowDonateMainMenu(id);
+    }
+
+    return PLUGIN_HANDLED;
+}
+
+ShowDonateCurrencyMenu(id)
+{
+    if(!CanUseJBMenu(id, true) || get_member(id, m_iTeam) != TEAM_TERRORIST) return;
+    if(g_bDonateUsedRound[id])
+    {
+        Chat(id, "Bu rauntta zaten bağış gönderdin.");
+        ShowDonateMainMenu(id);
+        return;
+    }
+
+    new menu = FC_MenuCreate("\\wBağış Para Birimi", "H_DonateCurrency");
+    new line[96];
+    formatex(line, charsmax(line), "\\wTL \\y[ %d TL ]", g_iTL[id]);
+    FC_MenuAddItem(menu, line, "1");
+    formatex(line, charsmax(line), "\\wCoin \\y[ %d Coin ]", g_iCoin[id]);
+    FC_MenuAddItem(menu, line, "2");
+    FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
+    menu_display(id, menu);
+}
+
+public H_DonateCurrency(id, menu, item)
+{
+    if(item == MENU_EXIT)
+    {
+        menu_destroy(menu);
+        ShowDonateMainMenu(id);
+        return PLUGIN_HANDLED;
+    }
+
+    new info[8], name[64], access, callback;
+    menu_item_getinfo(menu, item, access, info, charsmax(info), name, charsmax(name), callback);
+    new key = str_to_num(info);
+    menu_destroy(menu);
+
+    if(get_member(id, m_iTeam) != TEAM_TERRORIST || g_bDonateUsedRound[id])
+    {
+        ShowDonateMainMenu(id);
+        return PLUGIN_HANDLED;
+    }
+
+    g_iDonateCurrency[id] = key == 2 ? DONATE_CURRENCY_COIN : DONATE_CURRENCY_TL;
+    g_iDonateAmount[id] = 0;
+    g_szDonateMessage[id][0] = 0;
+    Chat(id, "Bağış miktarını rakamla yaz.");
+    client_cmd(id, "messagemode FC_DonateAmount");
+    return PLUGIN_HANDLED;
+}
+
+public CmdDonateAmount(id)
+{
+    if(!is_user_connected(id)) return PLUGIN_HANDLED;
+    if(get_member(id, m_iTeam) != TEAM_TERRORIST || g_bDonateUsedRound[id])
+    {
+        ShowDonateMainMenu(id);
+        return PLUGIN_HANDLED;
+    }
+
+    new input[32];
+    read_args(input, charsmax(input));
+    remove_quotes(input);
+    trim(input);
+
+    if(!input[0])
+    {
+        Chat(id, "Miktarı Belirleyin.");
+        client_cmd(id, "messagemode FC_DonateAmount");
+        return PLUGIN_HANDLED;
+    }
+
+    for(new i; input[i]; i++)
+    {
+        if(input[i] < '0' || input[i] > '9')
+        {
+            Chat(id, "Miktarı Belirleyin. Sadece rakam kullan.");
+            client_cmd(id, "messagemode FC_DonateAmount");
+            return PLUGIN_HANDLED;
+        }
+    }
+
+    new amount = str_to_num(input);
+    if(amount <= 0)
+    {
+        Chat(id, "Miktarı Belirleyin.");
+        client_cmd(id, "messagemode FC_DonateAmount");
+        return PLUGIN_HANDLED;
+    }
+
+    new currency = g_iDonateCurrency[id];
+    if(currency < 0 || currency >= DONATE_CURRENCY_COUNT) currency = DONATE_CURRENCY_TL;
+
+    if(g_iDonateMaxAmount[currency] > 0 && amount > g_iDonateMaxAmount[currency])
+    {
+        Chat(id, "Bu para biriminde tek bağış üst sınırı: %d.", g_iDonateMaxAmount[currency]);
+        client_cmd(id, "messagemode FC_DonateAmount");
+        return PLUGIN_HANDLED;
+    }
+
+    new balance = currency == DONATE_CURRENCY_COIN ? g_iCoin[id] : g_iTL[id];
+    if(amount > balance)
+    {
+        Chat(id, "Yeterli %s yok. Bakiyen: %d.", currency == DONATE_CURRENCY_COIN ? "Coin" : "TL", balance);
+        ShowDonateCurrencyMenu(id);
+        return PLUGIN_HANDLED;
+    }
+
+    g_iDonateAmount[id] = amount;
+    Chat(id, "Bağış mesajını yaz.");
+    client_cmd(id, "messagemode FC_DonateMessage");
+    return PLUGIN_HANDLED;
+}
+
+public CmdDonateMessage(id)
+{
+    if(!is_user_connected(id)) return PLUGIN_HANDLED;
+    if(get_member(id, m_iTeam) != TEAM_TERRORIST || g_bDonateUsedRound[id])
+    {
+        ShowDonateMainMenu(id);
+        return PLUGIN_HANDLED;
+    }
+
+    new message[DONATE_MESSAGE_LEN + 1];
+    read_args(message, charsmax(message));
+    remove_quotes(message);
+    trim(message);
+    replace_all(message, "^n", " ");
+    replace_all(message, "^r", " ");
+    trim(message);
+
+    if(!message[0])
+    {
+        Chat(id, "Mesajı Girin.");
+        client_cmd(id, "messagemode FC_DonateMessage");
+        return PLUGIN_HANDLED;
+    }
+
+    copy(g_szDonateMessage[id], charsmax(g_szDonateMessage[]), message);
+    ShowDonateConfirmMenu(id);
+    return PLUGIN_HANDLED;
+}
+
+ShowDonateConfirmMenu(id)
+{
+    if(!CanUseJBMenu(id, true)) return;
+    if(g_iDonateAmount[id] <= 0 || !g_szDonateMessage[id][0])
+    {
+        Chat(id, g_iDonateAmount[id] <= 0 ? "Miktarı Belirleyin." : "Mesajı Girin.");
+        ShowDonateCurrencyMenu(id);
+        return;
+    }
+
+    new currencyName[12], line[128];
+    DonateCurrencyName(g_iDonateCurrency[id], currencyName, charsmax(currencyName));
+    formatex(line, charsmax(line), "\\yBağış Gönder [ %d %s ]", g_iDonateAmount[id], currencyName);
+
+    new menu = FC_MenuCreate("\\wBağışı Onayla", "H_DonateConfirm");
+    FC_MenuAddItem(menu, line, "1");
+    FC_MenuAddItem(menu, "\\dVazgeç", "2");
+    FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
+    menu_display(id, menu);
+}
+
+public H_DonateConfirm(id, menu, item)
+{
+    if(item == MENU_EXIT)
+    {
+        menu_destroy(menu);
+        ShowDonateMainMenu(id);
+        return PLUGIN_HANDLED;
+    }
+
+    new info[8], name[64], access, callback;
+    menu_item_getinfo(menu, item, access, info, charsmax(info), name, charsmax(name), callback);
+    new key = str_to_num(info);
+    menu_destroy(menu);
+
+    if(key == 1) DonateCommit(id);
+    else ShowDonateMainMenu(id);
+    return PLUGIN_HANDLED;
+}
+
+DonateCommit(id)
+{
+    if(!is_user_connected(id) || !CanUseJBMenu(id, true)) return;
+    if(get_member(id, m_iTeam) != TEAM_TERRORIST)
+    {
+        Chat(id, "Bağış göndermek için Mahkûm olmalısın.");
+        return;
+    }
+    if(g_bDonateUsedRound[id])
+    {
+        Chat(id, "Bu rauntta zaten bağış gönderdin.");
+        return;
+    }
+    if(g_iUID[id] <= 0 || !g_bProfileLoaded[id] || g_bGuestMode[id])
+    {
+        ShowAccountMenu(id);
+        return;
+    }
+
+    new currency = g_iDonateCurrency[id];
+    new amount = g_iDonateAmount[id];
+    if(currency < 0 || currency >= DONATE_CURRENCY_COUNT || amount <= 0)
+    {
+        Chat(id, "Miktarı Belirleyin.");
+        ShowDonateCurrencyMenu(id);
+        return;
+    }
+    if(!g_szDonateMessage[id][0])
+    {
+        Chat(id, "Mesajı Girin.");
+        client_cmd(id, "messagemode FC_DonateMessage");
+        return;
+    }
+    if(g_iDonateMaxAmount[currency] > 0 && amount > g_iDonateMaxAmount[currency])
+    {
+        Chat(id, "Bağış miktarı üst sınırı aşıyor.");
+        ShowDonateCurrencyMenu(id);
+        return;
+    }
+
+    if(currency == DONATE_CURRENCY_TL)
+    {
+        if(g_iTL[id] < amount)
+        {
+            Chat(id, "Yeterli TL yok.");
+            ShowDonateCurrencyMenu(id);
+            return;
+        }
+        g_iTL[id] -= amount;
+        FC_RecordTLSpend(id, amount);
+    }
+    else
+    {
+        if(g_iCoin[id] < amount)
+        {
+            Chat(id, "Yeterli Coin yok.");
+            ShowDonateCurrencyMenu(id);
+            return;
+        }
+        FC_CoinChange(id, -amount);
+    }
+
+    g_bDonateUsedRound[id] = true;
+    SavePlayer(id);
+
+    new donorName[32], currencyName[12];
+    get_user_name(id, donorName, charsmax(donorName));
+    DonateCurrencyName(currency, currencyName, charsmax(currencyName));
+    DonateHistorySave(id, amount, currency, donorName, g_szDonateMessage[id]);
+
+    client_print_color(0, print_team_default,
+        "^3[FeliciaClan] ^4%s ^1bağış yaptı: ^3%d %s ^1- ^4%s",
+        donorName, amount, currencyName, g_szDonateMessage[id]);
+
+    new tier = DonateGetTier(currency, amount);
+    DonateBroadcastMedia(donorName, g_szDonateMessage[id], amount, currency, tier);
+
+    g_iDonateAmount[id] = 0;
+    g_szDonateMessage[id][0] = 0;
+    ShowDonateMainMenu(id);
+}
+
+DonateBroadcastMedia(const donorName[], const message[], amount, currency, tier)
+{
+    new currencyName[12], text[256];
+    DonateCurrencyName(currency, currencyName, charsmax(currencyName));
+    formatex(text, charsmax(text), "%s^n%s^n%d %s Bağışlandı", donorName, message, amount, currencyName);
+
+    for(new target = 1; target <= MaxClients; target++)
+    {
+        if(!is_user_connected(target)) continue;
+
+        // Text notification remains visible. The personal media preference
+        // controls only the SPR and WAV, independently for each recipient.
+        set_hudmessage(255, 220, 80, 0.73, 0.025, 0, 0.0, 4.0, 0.05, 0.1, -1);
+        ShowSyncHudMsg(target, g_iDonateHudSync, "%s", text);
+
+        if(!g_bDonateMediaEnabled[target]) continue;
+
+        DonateShowSprite(target, currency, tier);
+        if(g_bDonateSoundReady[currency][tier])
+            client_cmd(target, "spk %s", g_szDonateSoundName[currency][tier]);
+    }
+}
+
+ShowDonateHistoryMenu(id)
+{
+    if(!CanUseJBMenu(id, true) || !HasRole(id, ROLE_MANAGER))
+    {
+        Chat(id, "Bağış geçmişini yalnızca yönetici üyeliği görüntüleyebilir.");
+        return;
+    }
+
+    new menu = FC_MenuCreate("\\wGeçmiş Bağışlar", "H_DonateHistory");
+    new count = min(g_iDonateHistorySerial, 20);
+    new line[160], info[16], donor[40], amountText[24], currencyText[12], serial;
+
+    if(!count)
+        FC_MenuAddItem(menu, "\\dHenüz bağış kaydı yok", "0");
+
+    for(new i; i < count; i++)
+    {
+        serial = g_iDonateHistorySerial - i;
+        DonateHistoryRead(serial, "NAME", donor, charsmax(donor));
+        DonateHistoryRead(serial, "AMOUNT", amountText, charsmax(amountText));
+        DonateHistoryRead(serial, "CURRENCY", currencyText, charsmax(currencyText));
+        new currency = clamp(str_to_num(currencyText), 0, DONATE_CURRENCY_COUNT - 1);
+        new currencyName[12];
+        DonateCurrencyName(currency, currencyName, charsmax(currencyName));
+        formatex(line, charsmax(line), "\\w%s \\y- %s %s", donor, amountText, currencyName);
+        num_to_str(serial, info, charsmax(info));
+        FC_MenuAddItem(menu, line, info);
+    }
+
+    FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
+    menu_display(id, menu);
+}
+
+public H_DonateHistory(id, menu, item)
+{
+    if(item == MENU_EXIT)
+    {
+        menu_destroy(menu);
+        ShowDonateMainMenu(id);
+        return PLUGIN_HANDLED;
+    }
+
+    if(!HasRole(id, ROLE_MANAGER))
+    {
+        menu_destroy(menu);
+        return PLUGIN_HANDLED;
+    }
+
+    new info[16], name[64], access, callback;
+    menu_item_getinfo(menu, item, access, info, charsmax(info), name, charsmax(name), callback);
+    new serial = str_to_num(info);
+    menu_destroy(menu);
+
+    if(serial > 0) ShowDonateHistoryDetail(id, serial);
+    else ShowDonateHistoryMenu(id);
+    return PLUGIN_HANDLED;
+}
+
+ShowDonateHistoryDetail(id, serial)
+{
+    if(!HasRole(id, ROLE_MANAGER)) return;
+
+    new donor[40], message[DONATE_MESSAGE_LEN + 1], amountText[24], currencyText[12], timeText[40];
+    DonateHistoryRead(serial, "NAME", donor, charsmax(donor));
+    DonateHistoryRead(serial, "MESSAGE", message, charsmax(message));
+    DonateHistoryRead(serial, "AMOUNT", amountText, charsmax(amountText));
+    DonateHistoryRead(serial, "CURRENCY", currencyText, charsmax(currencyText));
+    DonateHistoryRead(serial, "TIME", timeText, charsmax(timeText));
+
+    new currency = clamp(str_to_num(currencyText), 0, DONATE_CURRENCY_COUNT - 1);
+    new currencyName[12], date[40], title[512];
+    DonateCurrencyName(currency, currencyName, charsmax(currencyName));
+    format_time(date, charsmax(date), "%d.%m.%Y %H:%M", str_to_num(timeText));
+
+    formatex(title, charsmax(title),
+        "\\wBağış Detayı^n^n\\yBağışçı: \\w%s^n\\yMiktar: \\w%s %s^n\\yTarih: \\w%s^n^n\\yMesaj: \\w%s",
+        donor, amountText, currencyName, date, message);
+
+    new menu = FC_MenuCreate(title, "H_DonateHistoryDetail");
+    FC_MenuAddItem(menu, "\\wBağış Geçmişine Dön", "1");
+    FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
+    menu_display(id, menu);
+}
+
+public H_DonateHistoryDetail(id, menu, item)
+{
+    menu_destroy(menu);
+    if(HasRole(id, ROLE_MANAGER)) ShowDonateHistoryMenu(id);
+    else ShowDonateMainMenu(id);
+}
+
+// ============================================================
 // EXTRA OZELLIKLER
 // Harici sistem menuleri burada toplanir.
 // Yeni secenekler eklenecegi zaman bu submenuye yeni item + handler key eklenir.
@@ -1911,13 +2683,7 @@ public H_ExtraFeatures(id, menu, item)
     {
         case 1:
         {
-            if(LibraryExists("felicia_donate", LibType_Library))
-                fc_donate_open(id);
-            else
-            {
-                Chat(id, "Donate sistemi şu anda yüklü değil.");
-                ShowExtraFeaturesMenu(id);
-            }
+            ShowDonateMainMenu(id);
         }
     }
 
@@ -1968,6 +2734,7 @@ public H_FPSOptions(id, menu, item)
     if(key == 1)
     {
         g_bDonateMediaEnabled[id] = !g_bDonateMediaEnabled[id];
+        if(!g_bDonateMediaEnabled[id]) DonateClearSprite(id);
         if(g_iUID[id] > 0 && g_bProfileLoaded[id])
             UIDSetInt(g_iUID[id], "donate_media", g_bDonateMediaEnabled[id]);
 
@@ -7539,6 +8306,7 @@ public EventRoundStart()
         if(!is_user_connected(id))
             continue;
 
+        g_bDonateUsedRound[id] = false;
         g_bSpecialKnifeBought[id] = false;
         g_bMainAdUsed[id] = false;
         g_bDoubleDamage[id] = false;
