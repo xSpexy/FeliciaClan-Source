@@ -1589,9 +1589,8 @@ stock CTPlacePing(id)
     new Float:center[3],Float:top[3],Float:a[3],Float:b[3];
     center[0]=float(aim[0]);center[1]=float(aim[1]);center[2]=float(aim[2])+5.0;
     top[0]=center[0];top[1]=center[1];top[2]=center[2]+54.0;
-    // Sprite varligi 2 saniye sonra silinir; beam efektleriyle ayni anda biter.
+    // Yalnizca zemin halkalari ve SPR gosterilir; dikey cizgi kaldirildi.
     CreatePingSprite(center);
-    LaserWallSendBeam(center,top,35,255,95,7,20);
     for(new ring=0;ring<2;ring++) {
         new Float:radius=ring?22.0:14.0;
         for(new i=0;i<16;i++) {
@@ -1614,7 +1613,7 @@ stock CreatePingSprite(const Float:origin[3])
 
     DispatchKeyValue(ent,"model","sprites/ledglowsss.spr");
     DispatchKeyValue(ent,"spawnflags","1");
-    DispatchKeyValue(ent,"scale","0.6");
+    DispatchKeyValue(ent,"scale","0.3");
     DispatchKeyValue(ent,"rendermode","5");
     DispatchKeyValue(ent,"renderamt","255");
     DispatchSpawn(ent);
@@ -1627,11 +1626,15 @@ stock CreatePingSprite(const Float:origin[3])
     set_entvar(ent,var_frame,0.0);
     set_entvar(ent,var_framerate,10.0);
     set_entvar(ent,var_scale,0.3);
-    set_entvar(ent,var_renderfx,kRenderFxNone);
-    set_entvar(ent,var_rendermode,kRenderTransAdd);
-    set_entvar(ent,var_renderamt,255.0);
+    // GlowShell, sprite'in duvar arkasindan gorunmesini denemek icin etkin.
+    new Float:glowColor[3];
+    glowColor[0]=35.0; glowColor[1]=255.0; glowColor[2]=95.0;
+    set_entvar(ent,var_renderfx,kRenderFxGlowShell);
+    set_entvar(ent,var_rendercolor,glowColor);
+    set_entvar(ent,var_rendermode,kRenderNormal);
+    set_entvar(ent,var_renderamt,30.0);
 
-    // Once gorunurlugu geri getir; duvar arkasi glow sonraki testte ayri ele alinacak.
+    // Sprite ve halkalar 2 saniyede kaybolur.
     set_task(2.0,"RemovePingSprite",ent+TASK_PING_SPRITE);
     return ent;
 }
