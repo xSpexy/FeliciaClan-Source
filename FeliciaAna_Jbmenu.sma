@@ -2150,8 +2150,9 @@ bool:DonateReadSpriteDimensions(const spritePath[], &width, &height)
     if(!file) return false;
 
     new ident, version;
-    new bool:valid = (fread(file, ident, BLOCK_INT) == 1
-        && fread(file, version, BLOCK_INT) == 1
+    // fread BLOCK_INT 4 bayt okur ve basarili okumada 4 dondurur.
+    new bool:valid = (fread(file, ident, BLOCK_INT) == 4
+        && fread(file, version, BLOCK_INT) == 4
         && ident == 0x50534449 && version == 2);
 
     if(valid)
@@ -2509,7 +2510,12 @@ ShowDonateMainMenu(id)
 
     new menu = FC_MenuCreate("\wDonate Sistemi", "H_DonateMain");
     if(get_member(id, m_iTeam) == TEAM_TERRORIST)
-        FC_MenuAddItem(menu, "\wBağış Gönder", "1");
+    {
+        if(g_bDonateUsedRound[id])
+            FC_MenuAddItem(menu, "\dBağış Gönder \r[Kullanıldı]", "1");
+        else
+            FC_MenuAddItem(menu, "\wBağış Gönder", "1");
+    }
     if(HasRole(id, ROLE_MANAGER))
     {
         FC_MenuAddItem(menu, "\wGeçmiş Bağışlar", "2");
