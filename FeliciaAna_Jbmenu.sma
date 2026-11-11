@@ -2044,6 +2044,8 @@ DonateLoadHistoryCounter()
 DonatePrecacheMedia()
 {
     new key[64], path[192], spriteName[96], soundName[96], prefix[8];
+    new frameSpriteName[128], framePath[192], frameWeaponName[32];
+    new bool:allFramesReady;
     new const weaponNames[DONATE_CURRENCY_COUNT][3][32] =
     {
         { "weapon_fcdonate_tl1", "weapon_fcdonate_tl2", "weapon_fcdonate_tl3" },
@@ -2070,8 +2072,7 @@ DonatePrecacheMedia()
             copy(g_szDonateSpriteName[currency][tier], charsmax(g_szDonateSpriteName[][]), spriteName);
 
             // HUD animasyonu: ayni weapon id icin farkli kare sprite dosyalari sirayla gonderilir.
-            new bool:allFramesReady = true;
-            new frameSpriteName[128], framePath[192], frameWeaponName[32];
+            allFramesReady = true;
             for(new frame = 0; frame < DONATE_SPRITE_FRAME_COUNT; frame++)
             {
                 formatex(frameSpriteName, charsmax(frameSpriteName), "%s_%d", spriteName, frame);
@@ -2167,25 +2168,25 @@ DonateSendFov(id, fov)
 
 DonateSendSprite(id)
 {
+    new currency, tier, fov, frame, weaponName[32];
     if(id < 1 || id > MaxClients || !is_user_connected(id)
         || !g_bDonateSpriteActive[id] || !g_bDonateMediaEnabled[id]) return;
 
-    new currency = g_iDonateSpriteCurrency[id];
-    new tier = g_iDonateSpriteTier[id];
+    currency = g_iDonateSpriteCurrency[id];
+    tier = g_iDonateSpriteTier[id];
     if(currency < 0 || currency >= DONATE_CURRENCY_COUNT || tier < 0 || tier > 2
         || !g_bDonateSpriteReady[currency][tier] || !is_user_alive(id)) return;
 
-    new fov = DonateGetFov(id);
+    fov = DonateGetFov(id);
     // Do not override a live sniper/AUG/SG552 scope. The SetFOV hook
     // will redraw the sprite when the player returns to normal FOV.
     if(fov < 90) return;
 
     g_bDonateSpriteSending[id] = true;
 
-    new weaponName[32];
     if(g_bDonateSpriteAnimated[currency][tier])
     {
-        new frame = g_iDonateSpriteFrame[id];
+        frame = g_iDonateSpriteFrame[id];
         copy(weaponName, charsmax(weaponName),
             g_szDonateWeaponFrameName[currency][tier][frame]);
         g_iDonateSpriteFrame[id] = (frame + 1) % DONATE_SPRITE_FRAME_COUNT;
