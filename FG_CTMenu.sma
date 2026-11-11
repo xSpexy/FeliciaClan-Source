@@ -1612,7 +1612,7 @@ stock CreatePingSprite(const Float:origin[3])
     new ent=create_entity("env_sprite");
     if(!ent) return 0;
 
-    DispatchKeyValue(ent,"model","sprites/ledglow.spr");
+    DispatchKeyValue(ent,"model","sprites/ledglowsss.spr");
     DispatchKeyValue(ent,"spawnflags","1");
     DispatchKeyValue(ent,"scale","0.6");
     DispatchKeyValue(ent,"rendermode","5");
@@ -1626,7 +1626,7 @@ stock CreatePingSprite(const Float:origin[3])
     set_entvar(ent,var_modelindex,g_pingSprite);
     set_entvar(ent,var_frame,0.0);
     set_entvar(ent,var_framerate,10.0);
-    set_entvar(ent,var_scale,0.6);
+    set_entvar(ent,var_scale,0.3);
     set_entvar(ent,var_renderfx,kRenderFxNone);
     set_entvar(ent,var_rendermode,kRenderTransAdd);
     set_entvar(ent,var_renderamt,255.0);
@@ -9550,7 +9550,7 @@ public plugin_precache() {
     precache_model(g_lootModel);
     g_beam=precache_model(file_exists(BEAM_SPRITE) ? BEAM_SPRITE : "sprites/laserbeam.spr");
     g_lineBeam=precache_model("sprites/laserbeam.spr");
-    g_pingSprite=precache_model("sprites/ledglow.spr");
+    g_pingSprite=precache_model("sprites/ledglowsss.spr");
     precache_sound("buttons/blip1.wav");
 }
 
