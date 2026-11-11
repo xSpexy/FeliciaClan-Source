@@ -2172,8 +2172,8 @@ DonateSendSprite(id)
 
     for(new axis = 0; axis < 3; axis++)
     {
-        drawPos[axis] = origin[axis] + vecForward[axis] * 256.0
-            + vecRight[axis] * 172.0 + vecUp[axis] * 128.0;
+        drawPos[axis] = origin[axis] + vecForward[axis] * 72.0
+            + vecRight[axis] * 48.0 + vecUp[axis] * 34.0;
     }
 
     message_begin(MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, _, id);
@@ -2182,8 +2182,8 @@ DonateSendSprite(id)
     write_coord(floatround(drawPos[1]));
     write_coord(floatround(drawPos[2]));
     write_short(modelIndex);
-    write_byte(1);
-    write_byte(255);
+    write_byte(10);   // 1.0 olcek; onceki 0.1 olcek cok kucuktu
+    write_byte(255);  // tam parlaklik
     message_end();
 }
 
@@ -2255,10 +2255,10 @@ public TaskDonateHudRefresh(taskid)
     }
 
     // Isim ve miktar sprite alaninin altina tasindi.
-    set_hudmessage(255, 255, 255, 0.73, 0.245, 0, 0.0, 0.65, 0.0, 0.05, -1);
+    set_hudmessage(255, 255, 255, 0.73, 0.315, 0, 0.0, 0.65, 0.0, 0.05, -1);
     ShowSyncHudMsg(target, g_iDonateHudSync, "%s", g_szDonateHudDonor[target]);
 
-    set_hudmessage(255, 55, 55, 0.73, 0.280, 0, 0.0, 0.65, 0.0, 0.05, -1);
+    set_hudmessage(255, 55, 55, 0.73, 0.350, 0, 0.0, 0.65, 0.0, 0.05, -1);
     ShowSyncHudMsg(target, g_iDonateAmountHudSync, "%s", g_szDonateHudAmount[target]);
 
     set_hudmessage(210, 210, 255, -1.0, 0.395, 0, 0.0, 0.65, 0.0, 0.05, 1);
@@ -2327,6 +2327,29 @@ DonateHistoryRead(serial, const field[], output[], outputLen)
     new key[96];
     formatex(key, charsmax(key), "DONATE_%d_%s", slot, field);
     nvault_get(g_iVault, key, output, outputLen);
+}
+
+stock DonateHistoryClearAll()
+{
+    if(g_iVault == INVALID_HANDLE)
+        return 0;
+
+    new const fields[][] = { "NAME", "UID", "MESSAGE", "AMOUNT", "CURRENCY", "TIME" };
+    new key[96];
+    new removed = min(g_iDonateHistorySerial, DONATE_HISTORY_LIMIT);
+
+    for(new slot = 0; slot < DONATE_HISTORY_LIMIT; slot++)
+    {
+        for(new field = 0; field < sizeof(fields); field++)
+        {
+            formatex(key, charsmax(key), "DONATE_%d_%s", slot, fields[field]);
+            nvault_remove(g_iVault, key);
+        }
+    }
+
+    g_iDonateHistorySerial = 0;
+    nvault_set(g_iVault, "DONATE_HISTORY_COUNT", "0");
+    return removed;
 }
 
 ShowDonateMainMenu(id)
@@ -2686,12 +2709,12 @@ ShowDonateHistoryMenu(id)
         return;
     }
 
-    new menu = FC_MenuCreate("\wGeçmiş Bağışlar", "H_DonateHistory");
+    new menu = FC_MenuCreate("\\wGeçmiş Bağışlar", "H_DonateHistory");
     new count = min(g_iDonateHistorySerial, 20);
     new line[160], info[16], donor[40], amountText[24], currencyText[12], serial;
 
     if(!count)
-        FC_MenuAddItem(menu, "\dHenüz bağış kaydı yok", "0");
+        FC_MenuAddItem(menu, "\\dHenüz bağış kaydı yok", "0");
 
     for(new i; i < count; i++)
     {
@@ -2702,10 +2725,13 @@ ShowDonateHistoryMenu(id)
         new currency = clamp(str_to_num(currencyText), 0, DONATE_CURRENCY_COUNT - 1);
         new currencyName[12];
         DonateCurrencyName(currency, currencyName, charsmax(currencyName));
-        formatex(line, charsmax(line), "\w%s \y- %s %s", donor, amountText, currencyName);
+        formatex(line, charsmax(line), "\\w%s \\y- %s %s", donor, amountText, currencyName);
         num_to_str(serial, info, charsmax(info));
         FC_MenuAddItem(menu, line, info);
     }
+
+    if(g_iDonateHistorySerial > 0)
+        FC_MenuAddItem(menu, "\\rBağış Geçmişini Temizle", "-1");
 
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
@@ -2731,8 +2757,53 @@ public H_DonateHistory(id, menu, item)
     new serial = str_to_num(info);
     menu_destroy(menu);
 
-    if(serial > 0) ShowDonateHistoryDetail(id, serial);
-    else ShowDonateHistoryMenu(id);
+    if(serial == -1)
+        ShowDonateHistoryClearConfirm(id);
+    else if(serial > 0)
+        ShowDonateHistoryDetail(id, serial);
+    else
+        ShowDonateHistoryMenu(id);
+    return PLUGIN_HANDLED;
+}
+
+ShowDonateHistoryClearConfirm(id)
+{
+    if(!HasRole(id, ROLE_MANAGER)) return;
+
+    new menu = FC_MenuCreate("\\wBağış geçmişinin tamamı silinsin mi?", "H_DonateHistoryClearConfirm");
+    FC_MenuAddItem(menu, "\\rEvet, geçmişi temizle", "1");
+    FC_MenuAddItem(menu, "\\wHayır, geri dön", "2");
+    FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
+    menu_display(id, menu);
+}
+
+public H_DonateHistoryClearConfirm(id, menu, item)
+{
+    if(!HasRole(id, ROLE_MANAGER))
+    {
+        menu_destroy(menu);
+        return PLUGIN_HANDLED;
+    }
+
+    if(item == MENU_EXIT)
+    {
+        menu_destroy(menu);
+        ShowDonateHistoryMenu(id);
+        return PLUGIN_HANDLED;
+    }
+
+    new info[8], name[64], access, callback;
+    menu_item_getinfo(menu, item, access, info, charsmax(info), name, charsmax(name), callback);
+    new key = str_to_num(info);
+    menu_destroy(menu);
+
+    if(key == 1)
+    {
+        new removed = DonateHistoryClearAll();
+        Chat(id, "Bağış geçmişi temizlendi. Silinen kayıt sayısı: ^4%d", removed);
+    }
+
+    ShowDonateHistoryMenu(id);
     return PLUGIN_HANDLED;
 }
 
@@ -3336,6 +3407,111 @@ stock RaffleSaveAll()
     for(new id = 1; id <= g_iRaffleCount; id++)
         RaffleSaveOne(id);
 }
+stock RaffleDeleteStoredRecord(raffleId)
+{
+    if(g_iVault == INVALID_HANDLE || raffleId < 1)
+        return;
+
+    new const fields[][] = {
+        "active", "creator_uid", "creator_name", "title",
+        "reward_type", "reward_amount", "reward_cos",
+        "fee_type", "fee_amount", "end_mode", "end_value",
+        "created_at", "ends_at", "finished_at", "participant_count",
+        "winner_uid", "winner_name", "reward_delivered"
+    };
+
+    new key[96], field[32];
+    for(new i = 0; i < sizeof(fields); i++)
+    {
+        RaffleMakeKey(raffleId, fields[i], key, charsmax(key));
+        nvault_remove(g_iVault, key);
+    }
+
+    for(new p = 0; p < FC_RAFFLE_PARTICIPANTS; p++)
+    {
+        formatex(field, charsmax(field), "p%d_uid", p);
+        RaffleMakeKey(raffleId, field, key, charsmax(key));
+        nvault_remove(g_iVault, key);
+
+        formatex(field, charsmax(field), "p%d_name", p);
+        RaffleMakeKey(raffleId, field, key, charsmax(key));
+        nvault_remove(g_iVault, key);
+    }
+}
+
+stock RaffleCopyRecord(dest, source)
+{
+    g_bRaffleActive[dest] = g_bRaffleActive[source];
+    g_iRaffleCreatorUID[dest] = g_iRaffleCreatorUID[source];
+    copy(g_szRaffleCreator[dest], charsmax(g_szRaffleCreator[]), g_szRaffleCreator[source]);
+    copy(g_szRaffleTitle[dest], charsmax(g_szRaffleTitle[]), g_szRaffleTitle[source]);
+    g_iRaffleRewardType[dest] = g_iRaffleRewardType[source];
+    g_iRaffleRewardAmount[dest] = g_iRaffleRewardAmount[source];
+    g_iRaffleRewardCosmetic[dest] = g_iRaffleRewardCosmetic[source];
+    g_iRaffleFeeType[dest] = g_iRaffleFeeType[source];
+    g_iRaffleFeeAmount[dest] = g_iRaffleFeeAmount[source];
+    g_iRaffleEndMode[dest] = g_iRaffleEndMode[source];
+    g_iRaffleEndValue[dest] = g_iRaffleEndValue[source];
+    g_iRaffleCreatedAt[dest] = g_iRaffleCreatedAt[source];
+    g_iRaffleEndsAt[dest] = g_iRaffleEndsAt[source];
+    g_iRaffleFinishedAt[dest] = g_iRaffleFinishedAt[source];
+    g_iRaffleParticipantCount[dest] = g_iRaffleParticipantCount[source];
+    g_iRaffleWinnerUID[dest] = g_iRaffleWinnerUID[source];
+    copy(g_szRaffleWinnerName[dest], charsmax(g_szRaffleWinnerName[]), g_szRaffleWinnerName[source]);
+    g_bRaffleRewardDelivered[dest] = g_bRaffleRewardDelivered[source];
+
+    for(new p = 0; p < FC_RAFFLE_PARTICIPANTS; p++)
+    {
+        g_iRaffleParticipantUID[dest][p] = g_iRaffleParticipantUID[source][p];
+        copy(g_szRaffleParticipantName[dest][p], charsmax(g_szRaffleParticipantName[][]),
+            g_szRaffleParticipantName[source][p]);
+    }
+}
+
+stock RaffleClearOldCompleted(&protectedCount)
+{
+    protectedCount = 0;
+    if(g_iVault == INVALID_HANDLE)
+        return 0;
+
+    new oldCount = g_iRaffleCount;
+    new writeIndex, removed;
+
+    for(new readIndex = 0; readIndex < oldCount; readIndex++)
+    {
+        // Aktif cekilisler ve teslim edilmemis odul sahipleri korunur.
+        if(g_bRaffleActive[readIndex]
+            || (g_iRaffleWinnerUID[readIndex] > 0 && !g_bRaffleRewardDelivered[readIndex]))
+        {
+            protectedCount++;
+        }
+        else
+        {
+            RaffleDeleteStoredRecord(readIndex + 1);
+            removed++;
+            continue;
+        }
+
+        if(writeIndex != readIndex)
+        {
+            RaffleCopyRecord(writeIndex, readIndex);
+            RaffleSaveOne(writeIndex + 1);
+            RaffleDeleteStoredRecord(readIndex + 1);
+        }
+        writeIndex++;
+    }
+
+    // Kuyruktaki eski ID'ler ve artik nVault alanlari da kaldirilir.
+    for(new id = writeIndex + 1; id <= oldCount; id++)
+        RaffleDeleteStoredRecord(id);
+
+    g_iRaffleCount = writeIndex;
+    new countData[16];
+    num_to_str(g_iRaffleCount, countData, charsmax(countData));
+    nvault_set(g_iVault, "FC_RAFFLE_COUNT", countData);
+    return removed;
+}
+
 stock RaffleFindByID(raffleId)
 {
     if(raffleId < 1 || raffleId > g_iRaffleCount) return -1;
@@ -3854,12 +4030,13 @@ RaffleShowManager(id)
             totalCoin += g_iRaffleParticipantCount[i] * g_iRaffleFeeAmount[i];
     }
     new title[256];
-    formatex(title, charsmax(title), "\wYonetici Cekilis Paneli^n\dToplam: \w%d \d| Aktif: \y%d \d| Tamamlanan: \y%d^n\dToplanan: \w%d TL \d/ \y%d Coin",
+    formatex(title, charsmax(title), "\\wYonetici Cekilis Paneli^n\\dToplam: \\w%d \\d| Aktif: \\y%d \\d| Tamamlanan: \\y%d^n\\dToplanan: \\w%d TL \\d/ \\y%d Coin",
         g_iRaffleCount, active, completed, totalTL, totalCoin);
     new menu = FC_MenuCreate(title, "H_RaffleManager");
-    FC_MenuAddItem(menu, "\yCekilis Olustur", "1");
-    FC_MenuAddItem(menu, "\wCekilislerim", "2");
-    FC_MenuAddItem(menu, "\wKatilim Listeleri", "3");
+    FC_MenuAddItem(menu, "\\yCekilis Olustur", "1");
+    FC_MenuAddItem(menu, "\\wCekilislerim", "2");
+    FC_MenuAddItem(menu, "\\wKatilim Listeleri", "3");
+    FC_MenuAddItem(menu, "\\rEski Cekilisleri Temizle", "4");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
 }
@@ -3885,9 +4062,53 @@ public H_RaffleManager(id, menu, item)
         case 1: RaffleCreateStart(id);
         case 2: RaffleShowMyList(id);
         case 3: RaffleShowParticipationList(id);
+        case 4: RaffleShowClearOldConfirm(id);
     }
     return PLUGIN_HANDLED;
 }
+
+RaffleShowClearOldConfirm(id)
+{
+    if(!RaffleRequireManager(id)) return;
+
+    new menu = FC_MenuCreate("\\wTamamlanmis eski cekilisler silinsin mi?^n\\dAktif cekilisler ve teslim edilmemis oduller korunur.", "H_RaffleClearOldConfirm");
+    FC_MenuAddItem(menu, "\\rEvet, eski cekilisleri temizle", "1");
+    FC_MenuAddItem(menu, "\\wHayir, geri don", "2");
+    FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
+    menu_display(id, menu);
+}
+
+public H_RaffleClearOldConfirm(id, menu, item)
+{
+    if(!RaffleRequireManager(id))
+    {
+        menu_destroy(menu);
+        return PLUGIN_HANDLED;
+    }
+
+    if(item == MENU_EXIT)
+    {
+        menu_destroy(menu);
+        RaffleShowManager(id);
+        return PLUGIN_HANDLED;
+    }
+
+    new info[8], name[64], access, cb;
+    menu_item_getinfo(menu, item, access, info, charsmax(info), name, charsmax(name), cb);
+    new key = str_to_num(info);
+    menu_destroy(menu);
+
+    if(key == 1)
+    {
+        new protectedCount, removed = RaffleClearOldCompleted(protectedCount);
+        Chat(id, "Eski cekilis temizligi tamamlandi. Silinen: ^4%d ^1| Korunan aktif/odulu bekleyen: ^3%d",
+            removed, protectedCount);
+    }
+
+    RaffleShowManager(id);
+    return PLUGIN_HANDLED;
+}
+
 RaffleShowMyList(id)
 {
     if(!RaffleRequireManager(id)) return;
