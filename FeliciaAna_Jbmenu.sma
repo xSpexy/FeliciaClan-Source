@@ -2141,8 +2141,9 @@ bool:DonateWriteWeaponDefinition(const weaponName[], const spriteName[])
     if(!file) return false;
 
     fputs(file, "2^n");
-    fprintf(file, "crosshair 320 %s 90 -60 128 80^n", spriteName);
-    fprintf(file, "crosshair 640 %s 230 -120 128 80^n", spriteName);
+    // SPR'yi ekranin sag ust bolgesine yerlestir.
+    fprintf(file, "crosshair 320 %s 215 -135 128 80^n", spriteName);
+    fprintf(file, "crosshair 640 %s 430 -270 128 80^n", spriteName);
     fclose(file);
 
     precache_generic(path);
@@ -2700,13 +2701,15 @@ DonateBroadcastMedia(const donorName[], const message[], amount, currency, tier)
     {
         if(!is_user_connected(target)) continue;
 
-        // Gonderen ismi ve bagis mesaji farkli renklerde, bes saniye gorunur.
-        set_hudmessage(255, 185, 55, 0.73, 0.025, 0, 0.0, g_flDonateDisplayTime, 0.05, 0.1, -1);
+        // Sag ustteki SPR'nin altinda gonderen adi ve bagis miktari.
+        set_hudmessage(255, 255, 255, 0.73, 0.165, 0, 0.0, g_flDonateDisplayTime, 0.05, 0.1, -1);
         ShowSyncHudMsg(target, g_iDonateHudSync, "%s", donorName);
-        set_hudmessage(220, 195, 255, 0.73, 0.060, 0, 0.0, g_flDonateDisplayTime, 0.05, 0.1, -1);
-        ShowSyncHudMsg(target, g_iDonateMessageHudSync, "%s", message);
-        set_hudmessage(255, 220, 80, 0.76, 0.42, 0, 0.0, g_flDonateDisplayTime, 0.05, 0.1, -1);
+        set_hudmessage(255, 55, 55, 0.73, 0.200, 0, 0.0, g_flDonateDisplayTime, 0.05, 0.1, -1);
         ShowSyncHudMsg(target, g_iDonateAmountHudSync, "%s", amountText);
+
+        // Bagis mesaji kasa animasyonu gibi ekran ortasinda, crosshair'in biraz ustunde.
+        set_hudmessage(210, 210, 255, -1.0, 0.395, 0, 0.0, g_flDonateDisplayTime, 0.05, 0.1, 1);
+        ShowSyncHudMsg(target, g_iDonateMessageHudSync, "%s", message);
 
         if(!g_bDonateMediaEnabled[target]) continue;
 
