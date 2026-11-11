@@ -1407,6 +1407,7 @@ LoadPlayer(id)
     g_bDonateMediaEnabled[id] = bool:UIDGetInt(g_iUID[id], "donate_media", 1);
     g_bSoundMenuEnabled[id] = bool:UIDGetInt(g_iUID[id], "sound_menu_enabled", 1);
     g_bKnifeSoundsEnabled[id] = bool:UIDGetInt(g_iUID[id], "knife_sounds_enabled", 1);
+    g_bSoundSentRound[id] = UIDGetInt(g_iUID[id],"sound_round_stamp",0)==g_iJBRoundStamp;
     g_bDonateUsedRound[id] = UIDGetInt(g_iUID[id], "donate_round_stamp", 0) == g_iJBRoundStamp;
 
     for(new i; i < COS_ITEM_COUNT; i++)
@@ -1480,6 +1481,7 @@ SavePlayer(id)
     UIDSetInt(g_iUID[id], "donate_media", g_bDonateMediaEnabled[id]);
     UIDSetInt(g_iUID[id], "sound_menu_enabled", g_bSoundMenuEnabled[id]);
     UIDSetInt(g_iUID[id], "knife_sounds_enabled", g_bKnifeSoundsEnabled[id]);
+    UIDSetInt(g_iUID[id], "sound_round_stamp", g_bSoundSentRound[id] ? g_iJBRoundStamp : 0);
 
     for(new i; i < COS_ITEM_COUNT; i++)
     {
