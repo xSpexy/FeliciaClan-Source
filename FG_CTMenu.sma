@@ -704,6 +704,15 @@ new bool:g_hard;
 new g_fwPrepare, g_fwStarted, g_fwFinished, g_menuCallback;
 new g_fwRocketPrepare,g_fwRocketFinished;
 new g_beam, g_lineBeam, g_vault;
+#define TASK_LASER_WALL 741320
+#define LASER_WALL_HALF_WIDTH 220.0
+#define LASER_WALL_TOUCH_DISTANCE 24.0
+new bool:g_wallActive[MAXP+1], bool:g_wallUsed[MAXP+1];
+new bool:g_wallInside[MAXP+1][MAXP+1];
+new g_wallOwnerUID[MAXP+1];
+new Float:g_wallStart[MAXP+1][3], Float:g_wallEnd[MAXP+1][3];
+new Float:g_wallMinZ[MAXP+1], Float:g_wallMaxZ[MAXP+1], Float:g_wallNextDraw[MAXP+1];
+new Float:g_pingNext[MAXP+1];
 new g_cvarFF, g_cvarFFA, g_cvarInfinite;
 new g_oldFF[24], g_oldFFA[24], g_oldInfinite[32];
 new bool:g_cvarsSaved;
@@ -1444,6 +1453,116 @@ public afver(const id)
     }
 }
 
+stock LaserWallSendBeam(const Float:start[3], const Float:end[3], red, green, blue, width, life)
+{
+    if(g_lineBeam<=0) return;
+    message_begin(MSG_BROADCAST,SVC_TEMPENTITY);
+    write_byte(TE_BEAMPOINTS);
+    write_coord_f(start[0]);write_coord_f(start[1]);write_coord_f(start[2]);
+    write_coord_f(end[0]);write_coord_f(end[1]);write_coord_f(end[2]);
+    write_short(g_lineBeam);
+    write_byte(0);write_byte(0);write_byte(life);write_byte(width);write_byte(0);
+    write_byte(red);write_byte(green);write_byte(blue);write_byte(255);write_byte(0);
+    message_end();
+}
+stock LaserWallDraw(owner)
+{
+    if(owner<1 || owner>MaxClients || !g_wallActive[owner]) return;
+    new Float:a[3],Float:b[3],Float:ta[3],Float:tb[3];
+    new Float:dx=g_wallEnd[owner][0]-g_wallStart[owner][0];
+    new Float:dy=g_wallEnd[owner][1]-g_wallStart[owner][1];
+    for(new i=0;i<=8;i++) {
+        new Float:f=float(i)/8.0;
+        a[0]=g_wallStart[owner][0]+dx*f;a[1]=g_wallStart[owner][1]+dy*f;a[2]=g_wallMinZ[owner];
+        ta[0]=a[0];ta[1]=a[1];ta[2]=g_wallMaxZ[owner];
+        LaserWallSendBeam(a,ta,255,35,35,7,220);
+    }
+    a[0]=g_wallStart[owner][0];a[1]=g_wallStart[owner][1];a[2]=g_wallMinZ[owner];
+    b[0]=g_wallEnd[owner][0];b[1]=g_wallEnd[owner][1];b[2]=g_wallMinZ[owner];
+    ta[0]=a[0];ta[1]=a[1];ta[2]=g_wallMaxZ[owner];
+    tb[0]=b[0];tb[1]=b[1];tb[2]=g_wallMaxZ[owner];
+    LaserWallSendBeam(a,b,255,20,20,8,220);
+    LaserWallSendBeam(ta,tb,255,20,20,8,220);
+}
+stock LaserWallRemove(owner)
+{
+    if(owner<1 || owner>MaxClients) return;
+    g_wallActive[owner]=false;g_wallUsed[owner]=false;g_wallOwnerUID[owner]=0;g_wallNextDraw[owner]=0.0;
+    for(new id=1;id<=MaxClients;id++) g_wallInside[owner][id]=false;
+}
+stock LaserWallReset()
+{
+    for(new owner=1;owner<=MaxClients;owner++) {
+        g_wallActive[owner]=false;g_wallUsed[owner]=false;g_wallOwnerUID[owner]=0;g_wallNextDraw[owner]=0.0;
+        for(new id=1;id<=MaxClients;id++) g_wallInside[owner][id]=false;
+    }
+}
+stock CreateLaserWall(id)
+{
+    if(!AliveCT(id)) {Chat(id,"Lazer duvarını yalnızca yaşayan gardiyanlar kurabilir.");return;}
+    if(g_bridgeRoundClosed || g_game || g_rocketActive) {Chat(id,"Aktif oyun veya round geçişinde lazer duvarı kuramazsın.");return;}
+    if(g_wallUsed[id]) {Chat(id,"Bu tur lazer duvarı kurma hakkını zaten kullandın.");return;}
+    new aim[3];get_user_origin(id,aim,3);
+    new Float:angles[3];get_entvar(id,var_v_angle,angles);
+    new Float:yaw=angles[1]+90.0;
+    new Float:rx=floatcos(yaw,degrees),Float:ry=floatsin(yaw,degrees);
+    g_wallStart[id][0]=float(aim[0])-rx*LASER_WALL_HALF_WIDTH;
+    g_wallStart[id][1]=float(aim[1])-ry*LASER_WALL_HALF_WIDTH;
+    g_wallEnd[id][0]=float(aim[0])+rx*LASER_WALL_HALF_WIDTH;
+    g_wallEnd[id][1]=float(aim[1])+ry*LASER_WALL_HALF_WIDTH;
+    g_wallMinZ[id]=float(aim[2])-48.0;g_wallMaxZ[id]=float(aim[2])+112.0;
+    g_wallStart[id][2]=g_wallMinZ[id];g_wallEnd[id][2]=g_wallMinZ[id];
+    g_wallActive[id]=true;g_wallUsed[id]=true;g_wallOwnerUID[id]=get_user_userid(id);
+    g_wallNextDraw[id]=get_gametime()+15.0;
+    for(new target=1;target<=MaxClients;target++) g_wallInside[id][target]=false;
+    LaserWallDraw(id);
+    client_print_color(0,id,"^1[^3FeliciaClan^1] ^3%n ^1bir lazer duvarı kurdu! Duvarı geçen mahkûmlar ^3100 HP^1 hasar alır.",id);
+}
+stock Float:LaserWallDistance2D(const Float:p[3],const Float:a[3],const Float:b[3])
+{
+    new Float:dx=b[0]-a[0],Float:dy=b[1]-a[1],Float:l=dx*dx+dy*dy;
+    if(l<=0.001) return 99999.0;
+    new Float:t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/l;
+    t=floatclamp(t,0.0,1.0);
+    new Float:x=p[0]-(a[0]+dx*t),Float:y=p[1]-(a[1]+dy*t);
+    return floatsqroot(x*x+y*y);
+}
+public LaserWallThink()
+{
+    new Float:now=get_gametime();
+    for(new owner=1;owner<=MaxClients;owner++) {
+        if(!g_wallActive[owner]) continue;
+        if(!is_user_connected(owner) || get_user_userid(owner)!=g_wallOwnerUID[owner]) {LaserWallRemove(owner);continue;}
+        if(now>=g_wallNextDraw[owner]) {LaserWallDraw(owner);g_wallNextDraw[owner]=now+15.0;}
+        for(new target=1;target<=MaxClients;target++) {
+            if(!AliveT(target)) {g_wallInside[owner][target]=false;continue;}
+            new Float:origin[3];get_entvar(target,var_origin,origin);
+            new bool:touch=(origin[2]>=g_wallMinZ[owner]-18.0 && origin[2]<=g_wallMaxZ[owner]+18.0
+                && LaserWallDistance2D(origin,g_wallStart[owner],g_wallEnd[owner])<=LASER_WALL_TOUCH_DISTANCE);
+            if(touch && !g_wallInside[owner][target]) {
+                g_wallInside[owner][target]=true;
+                ExecuteHamB(Ham_TakeDamage,target,owner,owner,100.0,DMG_ENERGYBEAM);
+            } else if(!touch) g_wallInside[owner][target]=false;
+        }
+    }
+}
+stock CTPlacePing(id)
+{
+    if(!AliveCT(id)) {Chat(id,"Ping göndermek için yaşayan gardiyan olmalısın.");return;}
+    if(g_bridgeRoundClosed || g_game || g_rocketActive) return;
+    new Float:now=get_gametime();if(now<g_pingNext[id]) return;g_pingNext[id]=now+1.0;
+    new aim[3];get_user_origin(id,aim,3);
+    new Float:a[3],Float:b[3],Float:l[3],Float:r[3],Float:f[3],Float:bk[3];
+    a[0]=float(aim[0]);a[1]=float(aim[1]);a[2]=float(aim[2])+4.0;
+    b[0]=a[0];b[1]=a[1];b[2]=a[2]+112.0;
+    l[0]=a[0]-24.0;l[1]=a[1];l[2]=a[2]+4.0;r[0]=a[0]+24.0;r[1]=a[1];r[2]=a[2]+4.0;
+    f[0]=a[0];f[1]=a[1]-24.0;f[2]=a[2]+4.0;bk[0]=a[0];bk[1]=a[1]+24.0;bk[2]=a[2]+4.0;
+    LaserWallSendBeam(a,b,40,220,80,8,25);LaserWallSendBeam(l,r,40,220,80,8,25);LaserWallSendBeam(f,bk,40,220,80,8,25);
+    client_print_color(0,id,"^1[^3FeliciaClan^1] ^3%n ^1konuma ping gönderdi.",id);
+}
+public CmdPing(id) {CTPlacePing(id);return PLUGIN_HANDLED;}
+public CmdLaserWall(id) {CreateLaserWall(id);return PLUGIN_HANDLED;}
+
 public ctmenu(id) {
     if(get_member(id, m_iTeam)!=TEAM_CT) client_print_color(id, id, "^1[^3%s^1]^4 CTMenuye sadece ^1gardiyanlar^4 girebilir.",serverTAG);
     else if(!is_user_alive(id)) client_print_color(id, id, "^1[^3%s^1]^4 CTMenuye ^1oluyken^4 giremezsin.",serverTAG);
@@ -1496,6 +1615,8 @@ public ctmenu(id) {
         RA_MenuAddItem(Menu,"\wMuzikleri \wDurdur.","12");
         RA_MenuAddItem(Menu,"\wAktif Oyunu Durdur","90");
         RA_MenuAddItem(Menu,"\wPet Turnuvası","91");
+        RA_MenuAddItem(Menu,"\wLazer Duvarı \d[\yTurda 1 kez\d]","92");
+        RA_MenuAddItem(Menu,"\wPing Gönder \d[\ySağ tık\d]","93");
 
         menu_setprop(Menu, MPROP_NUMBER_COLOR, "\r");
         menu_setprop(Menu, MPROP_NEXTNAME, "\wDiger Sayfa");
@@ -1519,6 +1640,8 @@ public ctmenu2(id, menu, item) {
 
     switch(key) {
         case 91 : {if(LibraryExists("fc_pet",LibType_Library)) fc_pet_admin_open(id);else Chat(id,"Pet Turnuvası plugini yüklü değil.");}
+        case 92 : CreateLaserWall(id);
+        case 93 : CTPlacePing(id);
         case 90 : {BridgeReset(CT_STOP_MENU,true);ctmenu(id);}
         case 1 : {
             switch(yarismaKontrol) 
@@ -6726,6 +6849,7 @@ public LegacyDisconnect(ids) {
 }
 
 public roundStart() {
+    LaserWallReset();
     g_bridgeRoundClosed=false;
     BridgeReset(CT_STOP_ROUND,false);
     elbasiKontrol=true;set_task(0.5,"eskibas",791230);
@@ -8408,10 +8532,13 @@ TickRedLight(Float:now) {
 
 public OnCmdStart(id,uc,seed) {
     if(id<1 || id>MaxClients || !is_user_alive(id)) return FMRES_IGNORED;
+    new buttons=get_uc(uc,UC_Buttons),rising=buttons&~g_prevButtons[id];
+    g_prevButtons[id]=buttons;
+    if(AliveCT(id) && (rising&IN_ATTACK2) && !g_game && !g_rocketActive)
+        CTPlacePing(id);
     if(!g_game && !g_hard && !g_rocketActive && !g_buriedUID[id]) return FMRES_IGNORED;
     // Normal C4 burial does not alter jump input or bunny velocity. The old
     // jump-key C4Lift shortcut is absent; only explicit CT controls release it.
-    new buttons=get_uc(uc,UC_Buttons),rising=buttons&~g_prevButtons[id];g_prevButtons[id]=buttons;
     if(g_reflexStarting) {set_uc(uc,UC_Buttons,0);set_uc(uc,UC_ForwardMove,0.0);set_uc(uc,UC_SideMove,0.0);return FMRES_IGNORED;}
     if(RocketTarget(id) && g_rocketPhase) {set_uc(uc,UC_ForwardMove,0.0);set_uc(uc,UC_SideMove,0.0);buttons&=~(IN_ATTACK|IN_ATTACK2|IN_JUMP);set_uc(uc,UC_Buttons,buttons);}
     if(g_hard && AliveT(id)) {
@@ -9353,7 +9480,11 @@ public plugin_init() {
     arrayset(g_protectionMenu,-1,sizeof g_protectionMenu);arrayset(g_protectionChoice,-1,sizeof g_protectionChoice);g_protectionCallback=menu_makecallback("CB_ProtectionVote");
     register_plugin("FeliciaClan CT Menu",VERSION,"n.dgn, LyNcH / FeliciaClan");
      
-    register_clcmd("say /ct","CmdMenu");  
+    register_clcmd("say /ct","CmdMenu");
+    register_clcmd("say /ping","CmdPing");
+    register_clcmd("say_team /ping","CmdPing");
+    register_clcmd("say /lazerduvari","CmdLaserWall");
+    register_clcmd("say_team /lazerduvari","CmdLaserWall");  
     register_clcmd("say /ctstop","CmdStop");
     register_clcmd("say /ctmarket","CmdMarket"); register_clcmd("CTMARKET","CmdMarket");
      
@@ -9382,6 +9513,7 @@ public plugin_init() {
     RegisterHookChain(RG_CBasePlayer_DropPlayerItem,"OnDrop",false);
     RegisterHookChain(RG_CBasePlayerWeapon_DefaultDeploy,"OnFistsDeploy",true);
     register_forward(FM_CmdStart,"OnCmdStart");
+    set_task(0.1,"LaserWallThink",TASK_LASER_WALL,"",0,"b");
     register_touch("player","player","OnTouchPlayers");
     register_touch("grenade","player","OnDodgeballGrenadeTouch");
     register_touch(LOOT_CLASS,"player","OnLoot");
@@ -9409,7 +9541,7 @@ public plugin_cfg() {LegacyCfg(); LoadCTConfig(); LoadArena(); }
 public plugin_end() {
     BridgeReset(CT_STOP_PLUGIN,false);LegacyEnd();
     StopAllFormations();StopCTGame(0,CT_STOP_PLUGIN); ResetTools();
-    remove_task(TASK_HEARTBEAT); remove_task(TASK_CHECK);
+    remove_task(TASK_HEARTBEAT); remove_task(TASK_CHECK); remove_task(TASK_LASER_WALL);
     if(g_vault>=0) nvault_close(g_vault);
     DestroyForward(g_fwPrepare); DestroyForward(g_fwStarted); DestroyForward(g_fwFinished);
     DestroyForward(g_fwRocketPrepare);DestroyForward(g_fwRocketFinished);
@@ -9418,7 +9550,7 @@ public plugin_end() {
 
 public client_putinserver(id) {
     CancelLoadout(id);g_spawnLife[id]++;
-    LegacyPut(id);BridgeClearSlot(id);
+    LegacyPut(id);BridgeClearSlot(id);g_prevButtons[id]=0;g_pingNext[id]=0.0;
     FC_ResetPanelHud(id);g_standaloneHud[id]=false;
     g_reflexShown[id]=g_reflexDirty[id]=false;g_reflexWeapon[id]=g_reflexClip[id]=g_reflexFov[id]=0;g_reflexDefined[id]=-1;
     arrayset(g_reflexAmmoKnown[id],false,sizeof g_reflexAmmoKnown[]);g_buriedUID[id]=0;g_buryFull[id]=false;g_buryUntil[id]=0.0;
@@ -9436,6 +9568,7 @@ public client_authorized(id) { LoadWallet(id); }
 
 public client_disconnected(id) {
     CancelLoadout(id);g_spawnLife[id]++;
+    LaserWallRemove(id);g_pingNext[id]=0.0;g_prevButtons[id]=0;
     LegacyDisconnect(id);BridgeClearSlot(id);
     RocketDrop(id);
     if(id==g_protectionActor) CancelProtectionVote();g_protectionVoterUID[id]=0;
