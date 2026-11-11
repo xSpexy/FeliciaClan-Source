@@ -613,7 +613,6 @@ new const SOUND_MENU_INI[]="addons/amxmodx/configs/FeliciaClan/Ses_Menu.ini";
 #define TASK_DONATE_REFRESH 779100
 #define TASK_DONATE_HUD_REFRESH 779200
 #define TASK_DONATE_HUD_CLEAR 779300
-#define DONATE_SPRITE_FRAME_COUNT 8
 
 enum _:DonateCurrencyType
 {
@@ -647,11 +646,8 @@ new g_iDonateMaxAmount[DONATE_CURRENCY_COUNT];
 new g_szDonateSpriteName[DONATE_CURRENCY_COUNT][3][96];
 new g_szDonateSoundName[DONATE_CURRENCY_COUNT][3][96];
 new g_szDonateWeaponName[DONATE_CURRENCY_COUNT][3][32];
-new g_szDonateWeaponFrameName[DONATE_CURRENCY_COUNT][3][DONATE_SPRITE_FRAME_COUNT * 32];
 new bool:g_bDonateSpriteReady[DONATE_CURRENCY_COUNT][3];
-new bool:g_bDonateSpriteAnimated[DONATE_CURRENCY_COUNT][3];
 new bool:g_bDonateSoundReady[DONATE_CURRENCY_COUNT][3];
-new g_iDonateSpriteFrame[33];
 
 new g_iPlayRewardMinutes[33];
 #define PLAY_REWARD_TASK 28000
@@ -2056,15 +2052,202 @@ DonateLoadHistoryCounter()
         ? max(0, str_to_num(value)) : 0;
 }
 
+// Converts the animated SPR group to the same index-alpha transparency
+// format used by the working Milyoner logo. Its black background is palette
+// index 0; index 255 is reserved for transparent pixels in SPR_ALPHTEST.
+bool:DonateBuildTransparentGroupSprite(const spriteName[], outputName[], outputLen)
+{
+    new sourcePath[192], outputPath[192];
+    formatex(sourcePath, charsmax(sourcePath), "sprites/%s.spr", spriteName);
+    formatex(outputName, outputLen, "%s_alpha3", spriteName);
+    formatex(outputPath, charsmax(outputPath), "sprites/%s.spr", outputName);
+
+    if(!file_exists(sourcePath))
+    {
+        log_amx("[Donate] Animated SPR source missing: %s", sourcePath);
+        return false;
+    }
+
+    if(file_exists(outputPath) && file_size(outputPath) == file_size(sourcePath))
+        return true;
+
+    if(file_exists(outputPath))
+        delete_file(outputPath);
+
+    new input = fopen(sourcePath, "rb");
+    if(!input)
+    {
+        log_amx("[Donate] Cannot open SPR source: %s", sourcePath);
+        return false;
+    }
+
+    new output = fopen(outputPath, "wb");
+    if(!output)
+    {
+        fclose(input);
+        log_amx("[Donate] Cannot create transparent SPR: %s", outputPath);
+        return false;
+    }
+
+    new bool:ok = true;
+    new data, paletteCount, frameType, frameCount;
+    new ident, version;
+
+    // Copy the 40-byte sprite header, changing only texFormat to SPR_ALPHTEST (3).
+    if(fread(input, ident, BLOCK_INT) != 1 || ident != 0x50534449)
+        ok = false;
+    else if(fwrite(output, ident, BLOCK_INT) != 1)
+        ok = false;
+
+    if(ok && (fread(input, version, BLOCK_INT) != 1 || version != 2))
+        ok = false;
+    else if(ok && fwrite(output, version, BLOCK_INT) != 1)
+        ok = false;
+
+    // Sprite orientation/type.
+    if(ok && fread(input, data, BLOCK_INT) != 1)
+        ok = false;
+    else if(ok && fwrite(output, data, BLOCK_INT) != 1)
+        ok = false;
+
+    // Convert additive (1) to alpha-test (3), matching the Milyoner SPR.
+    if(ok && fread(input, data, BLOCK_INT) != 1)
+        ok = false;
+    else if(ok)
+    {
+        data = 3;
+        if(fwrite(output, data, BLOCK_INT) != 1)
+            ok = false;
+    }
+
+    // Copy the remaining six 32-bit header fields verbatim.
+    for(new field = 0; field < 6 && ok; field++)
+    {
+        if(fread(input, data, BLOCK_INT) != 1 || fwrite(output, data, BLOCK_INT) != 1)
+            ok = false;
+    }
+
+    // One shared 256-colour palette follows the header.
+    if(ok && (fread(input, paletteCount, BLOCK_SHORT) != 1 || paletteCount != 256))
+        ok = false;
+    else if(ok && fwrite(output, paletteCount, BLOCK_SHORT) != 1)
+        ok = false;
+
+    new bool:blackPalette[256];
+    new red, green, blue;
+    for(new color = 0; color < 256 && ok; color++)
+    {
+        if(fread(input, red, BLOCK_CHAR) != 1
+            || fread(input, green, BLOCK_CHAR) != 1
+            || fread(input, blue, BLOCK_CHAR) != 1)
+        {
+            ok = false;
+            break;
+        }
+
+        red &= 255;
+        green &= 255;
+        blue &= 255;
+        blackPalette[color] = (red == 0 && green == 0 && blue == 0);
+
+        if(fwrite(output, red, BLOCK_CHAR) != 1
+            || fwrite(output, green, BLOCK_CHAR) != 1
+            || fwrite(output, blue, BLOCK_CHAR) != 1)
+            ok = false;
+    }
+
+    // The uploaded donate_money.spr is a SPR_GROUP with eight timed frames.
+    if(ok && (fread(input, frameType, BLOCK_INT) != 1 || frameType != 1))
+        ok = false;
+    else if(ok && fwrite(output, frameType, BLOCK_INT) != 1)
+        ok = false;
+
+    if(ok && (fread(input, frameCount, BLOCK_INT) != 1
+        || frameCount < 2 || frameCount > 32))
+        ok = false;
+    else if(ok && fwrite(output, frameCount, BLOCK_INT) != 1)
+        ok = false;
+
+    // Preserve each frame's animation interval.
+    for(new frame = 0; frame < frameCount && ok; frame++)
+    {
+        if(fread(input, data, BLOCK_INT) != 1 || fwrite(output, data, BLOCK_INT) != 1)
+            ok = false;
+    }
+
+    // Copy each frame descriptor and remap every pure-black palette entry
+    // to index 255, the transparent index in SPR_ALPHTEST.
+    for(new frame = 0; frame < frameCount && ok; frame++)
+    {
+        new frameWidth, frameHeight;
+        for(new field = 0; field < 4; field++)
+        {
+            if(fread(input, data, BLOCK_INT) != 1)
+            {
+                ok = false;
+                break;
+            }
+
+            if(field == 2) frameWidth = data;
+            if(field == 3) frameHeight = data;
+
+            if(fwrite(output, data, BLOCK_INT) != 1)
+            {
+                ok = false;
+                break;
+            }
+        }
+
+        if(!ok || frameWidth < 1 || frameHeight < 1
+            || frameWidth > 4096 || frameHeight > 4096)
+        {
+            ok = false;
+            break;
+        }
+
+        new pixelCount = frameWidth * frameHeight;
+        for(new pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++)
+        {
+            if(fread(input, data, BLOCK_CHAR) != 1)
+            {
+                ok = false;
+                break;
+            }
+
+            data &= 255;
+            if(blackPalette[data])
+                data = 255;
+
+            if(fwrite(output, data, BLOCK_CHAR) != 1)
+            {
+                ok = false;
+                break;
+            }
+        }
+    }
+
+    fclose(input);
+    fclose(output);
+
+    if(!ok || file_size(outputPath) != file_size(sourcePath))
+    {
+        delete_file(outputPath);
+        log_amx("[Donate] Transparent animated SPR conversion failed: %s", sourcePath);
+        return false;
+    }
+
+    log_amx("[Donate] Transparent animated SPR ready: %s (%d frames)", outputPath, frameCount);
+    return true;
+}
+
 DonatePrecacheMedia()
 {
-    new key[64], path[192], spriteName[96], soundName[96], prefix[8];
-    new frameSpriteName[128], framePath[192], frameWeaponName[32];
-    new bool:allFramesReady;
+    new key[64], path[192], spriteName[96], hudSpriteName[128];
+    new soundName[96], prefix[8];
     new const weaponNames[DONATE_CURRENCY_COUNT][3][32] =
     {
-        { "weapon_fcdon2_tl1", "weapon_fcdon2_tl2", "weapon_fcdon2_tl3" },
-        { "weapon_fcdon2_coin1", "weapon_fcdon2_coin2", "weapon_fcdon2_coin3" }
+        { "weapon_fcdon3_tl1", "weapon_fcdon3_tl2", "weapon_fcdon3_tl3" },
+        { "weapon_fcdon3_coin1", "weapon_fcdon3_coin2", "weapon_fcdon3_coin3" }
     };
 
     for(new currency = 0; currency < DONATE_CURRENCY_COUNT; currency++)
@@ -2080,48 +2263,29 @@ DonatePrecacheMedia()
 
         for(new tier = 0; tier < 3; tier++)
         {
-            copy(g_szDonateWeaponName[currency][tier], charsmax(g_szDonateWeaponName[][]), weaponNames[currency][tier]);
+            copy(g_szDonateWeaponName[currency][tier],
+                charsmax(g_szDonateWeaponName[][]), weaponNames[currency][tier]);
 
             formatex(key, charsmax(key), "DONATE_%s_TIER%d_SPRITE", prefix, tier + 1);
             DonateCfgStr(key, spriteName, charsmax(spriteName), "FeliciaClan/donate_money");
-            copy(g_szDonateSpriteName[currency][tier], charsmax(g_szDonateSpriteName[][]), spriteName);
 
-            // HUD animasyonu: ayni weapon id icin farkli kare sprite dosyalari sirayla gonderilir.
-            allFramesReady = true;
-            for(new frame = 0; frame < DONATE_SPRITE_FRAME_COUNT; frame++)
+            // Use the native eight-frame SPR_GROUP, converted once to alpha-test transparency.
+            if(DonateBuildTransparentGroupSprite(spriteName, hudSpriteName, charsmax(hudSpriteName)))
+                copy(spriteName, charsmax(spriteName), hudSpriteName);
+
+            copy(g_szDonateSpriteName[currency][tier],
+                charsmax(g_szDonateSpriteName[][]), spriteName);
+
+            formatex(path, charsmax(path), "sprites/%s.spr", spriteName);
+            if(file_exists(path)
+                && DonateWriteWeaponDefinition(g_szDonateWeaponName[currency][tier], spriteName))
             {
-                formatex(frameSpriteName, charsmax(frameSpriteName), "%s_%d", spriteName, frame);
-                formatex(framePath, charsmax(framePath), "sprites/%s.spr", frameSpriteName);
-                formatex(frameWeaponName, charsmax(frameWeaponName), "weapon_fcdon2_%s%d_f%d",
-                    currency == DONATE_CURRENCY_COIN ? "coin" : "tl", tier + 1, frame);
-                copy(g_szDonateWeaponFrameName[currency][tier][frame * 32],
-                    31, frameWeaponName);
-
-                if(!file_exists(framePath)
-                    || !DonateWriteWeaponDefinition(frameWeaponName, frameSpriteName))
-                {
-                    allFramesReady = false;
-                    break;
-                }
-                precache_generic(framePath);
-            }
-
-            if(allFramesReady)
-            {
+                precache_generic(path);
                 g_bDonateSpriteReady[currency][tier] = true;
-                g_bDonateSpriteAnimated[currency][tier] = true;
             }
             else
             {
-                // Ozel sprite yolu kullaniliyorsa eski tek-kare davranisina geri don.
-                formatex(path, charsmax(path), "sprites/%s.spr", spriteName);
-                if(file_exists(path)
-                    && DonateWriteWeaponDefinition(g_szDonateWeaponName[currency][tier], spriteName))
-                {
-                    precache_generic(path);
-                    g_bDonateSpriteReady[currency][tier] = true;
-                    g_bDonateSpriteAnimated[currency][tier] = false;
-                }
+                log_amx("[Donate] HUD SPR unavailable for %s", path);
             }
 
             formatex(key, charsmax(key), "DONATE_%s_TIER%d_SOUND", prefix, tier + 1);
@@ -2150,17 +2314,16 @@ bool:DonateReadSpriteDimensions(const spritePath[], &width, &height)
     if(!file) return false;
 
     new ident, version;
-    // fread BLOCK_INT 4 bayt okur ve basarili okumada 4 dondurur.
-    new bool:valid = (fread(file, ident, BLOCK_INT) == 4
-        && fread(file, version, BLOCK_INT) == 4
+    // fread returns the number of elements read: one BLOCK_INT item returns 1.
+    new bool:valid = (fread(file, ident, BLOCK_INT) == 1
+        && fread(file, version, BLOCK_INT) == 1
         && ident == 0x50534449 && version == 2);
 
     if(valid)
     {
         fseek(file, 20, SEEK_SET);
-        // Width and height are 32-bit integers; BLOCK_INT reads 4 bytes.
-        if(fread(file, width, BLOCK_INT) != 4
-            || fread(file, height, BLOCK_INT) != 4)
+        if(fread(file, width, BLOCK_INT) != 1
+            || fread(file, height, BLOCK_INT) != 1)
             valid = false;
     }
 
@@ -2237,7 +2400,7 @@ DonateSendFov(id, fov)
 
 DonateSendSprite(id)
 {
-    new currency, tier, fov, frame, weaponName[32];
+    new currency, tier, fov;
     if(id < 1 || id > MaxClients || !is_user_connected(id)
         || !g_bDonateSpriteActive[id] || !g_bDonateMediaEnabled[id]) return;
 
@@ -2253,20 +2416,10 @@ DonateSendSprite(id)
 
     g_bDonateSpriteSending[id] = true;
 
-    if(g_bDonateSpriteAnimated[currency][tier])
-    {
-        frame = g_iDonateSpriteFrame[id];
-        copy(weaponName, charsmax(weaponName),
-            g_szDonateWeaponFrameName[currency][tier][frame * 32]);
-        g_iDonateSpriteFrame[id] = (frame + 1) % DONATE_SPRITE_FRAME_COUNT;
-    }
-    else
-    {
-        copy(weaponName, charsmax(weaponName), g_szDonateWeaponName[currency][tier]);
-    }
-
+    // GoldSrc animates the eight-frame SPR_GROUP by its own frame intervals.
+    // Send one WeaponList definition; do not swap static frames every 0.1 seconds.
     message_begin(MSG_ONE, g_iDonateMsgWeaponList, _, id);
-    write_string(weaponName);
+    write_string(g_szDonateWeaponName[currency][tier]);
     // Match the working Reflex HUD WeaponList layout exactly.
     write_byte(0);
     write_byte(0);
@@ -2329,14 +2482,12 @@ DonateShowSprite(id, currency, tier)
 
     g_iDonateSpriteCurrency[id] = currency;
     g_iDonateSpriteTier[id] = tier;
-    g_iDonateSpriteFrame[id] = 0;
     g_bDonateSpriteActive[id] = true;
 
     remove_task(id + TASK_DONATE_SPRITE);
     remove_task(id + TASK_DONATE_REFRESH);
     DonateSendSprite(id);
-    if(g_bDonateSpriteAnimated[currency][tier])
-        set_task(0.10, "TaskDonateRefreshSprite", id + TASK_DONATE_REFRESH, "", 0, "b");
+    // The SPR_GROUP animation runs client-side; only restore after a scope exit.
     set_task(g_flDonateDisplayTime, "TaskDonateClearSprite", id + TASK_DONATE_SPRITE);
 }
 
@@ -2369,14 +2520,7 @@ public EventDonateSetFOV(id)
 
     remove_task(id + TASK_DONATE_REFRESH);
     if(read_data(1) >= 90)
-    {
-        new currency = g_iDonateSpriteCurrency[id];
-        new tier = g_iDonateSpriteTier[id];
-        if(g_bDonateSpriteAnimated[currency][tier])
-            set_task(0.10, "TaskDonateRefreshSprite", id + TASK_DONATE_REFRESH, "", 0, "b");
-        else
-            set_task(0.05, "TaskDonateRefreshSprite", id + TASK_DONATE_REFRESH);
-    }
+        set_task(0.05, "TaskDonateRefreshSprite", id + TASK_DONATE_REFRESH);
 }
 
 
