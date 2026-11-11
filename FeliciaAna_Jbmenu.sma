@@ -309,6 +309,7 @@ new const CHAT_TAG[] = "^1[ ^3- ^4FeliciaClan ^3- ^1]";
 new const LONG_TAG[] = "FeliciaClan";
 new const SHORT_TAG[] = "FG";
 new const CFG_FILE[] = "addons/amxmodx/configs/FeliciaClan/FeliciaClan_JBMenu.ini";
+new const DONATE_CFG_FILE[] = "addons/amxmodx/configs/FeliciaClan/FeliciaClan_Donate.ini";
 new const VAULT_NAME[] = "FeliciaClan_JBMenu";
 new const LOG_FILE[] = "FeliciaClan_JBMenu_V5.log";
 
@@ -577,6 +578,10 @@ new const g_CrateRollNames[][] = {
 new g_CfgCount;
 new g_CfgKey[MAX_CFG][MAX_CFG_KEY];
 new g_CfgVal[MAX_CFG][MAX_CFG_VAL];
+new g_DonateCfgCount;
+new g_DonateCfgKey[64][MAX_CFG_KEY];
+new g_DonateCfgVal[64][MAX_CFG_VAL];
+new Float:g_flDonateDisplayTime = 5.0;
 
 // ============================================================
 // PLAYER DATA
@@ -937,6 +942,7 @@ public N_AddCoin(plugin, params)
 public plugin_precache()
 {
     LoadConfig();
+    LoadDonateConfig();
     LoadSoundMenuConfig();
     g_iDefaultPKnifeModel = precache_model("models/p_knife.mdl");
     if(file_exists("sprites/voiceicon.spr")) g_iSoundSpeakerSprite=precache_model("sprites/voiceicon.spr");
@@ -2057,18 +2063,18 @@ DonatePrecacheMedia()
         copy(prefix, charsmax(prefix), currency == DONATE_CURRENCY_COIN ? "COIN" : "TL");
 
         formatex(key, charsmax(key), "DONATE_%s_TIER1_MAX", prefix);
-        g_iDonateTierFirstMax[currency] = max(0, CfgInt(key, 10));
+        g_iDonateTierFirstMax[currency] = max(0, DonateCfgInt(key, 10));
         formatex(key, charsmax(key), "DONATE_%s_TIER2_MAX", prefix);
-        g_iDonateTierSecondMax[currency] = max(g_iDonateTierFirstMax[currency], CfgInt(key, 50));
+        g_iDonateTierSecondMax[currency] = max(g_iDonateTierFirstMax[currency], DonateCfgInt(key, 50));
         formatex(key, charsmax(key), "DONATE_%s_MAX_AMOUNT", prefix);
-        g_iDonateMaxAmount[currency] = max(0, CfgInt(key, 0));
+        g_iDonateMaxAmount[currency] = max(0, DonateCfgInt(key, 0));
 
         for(new tier = 0; tier < 3; tier++)
         {
             copy(g_szDonateWeaponName[currency][tier], charsmax(g_szDonateWeaponName[][]), weaponNames[currency][tier]);
 
             formatex(key, charsmax(key), "DONATE_%s_TIER%d_SPRITE", prefix, tier + 1);
-            CfgStr(key, spriteName, charsmax(spriteName), "FeliciaClan/donate_money");
+            DonateCfgStr(key, spriteName, charsmax(spriteName), "FeliciaClan/donate_money");
             copy(g_szDonateSpriteName[currency][tier], charsmax(g_szDonateSpriteName[][]), spriteName);
 
             // HUD animasyonu: ayni weapon id icin farkli kare sprite dosyalari sirayla gonderilir.
@@ -2110,7 +2116,7 @@ DonatePrecacheMedia()
             }
 
             formatex(key, charsmax(key), "DONATE_%s_TIER%d_SOUND", prefix, tier + 1);
-            CfgStr(key, soundName, charsmax(soundName), "FeliciaClan/donate_money.wav");
+            DonateCfgStr(key, soundName, charsmax(soundName), "FeliciaClan/donate_money.wav");
             copy(g_szDonateSoundName[currency][tier], charsmax(g_szDonateSoundName[][]), soundName);
 
             formatex(path, charsmax(path), "sound/%s", soundName);
@@ -2267,7 +2273,7 @@ DonateShowSprite(id, currency, tier)
     DonateSendSprite(id);
     if(g_bDonateSpriteAnimated[currency][tier])
         set_task(0.10, "TaskDonateRefreshSprite", id + TASK_DONATE_REFRESH, "", 0, "b");
-    set_task(5.0, "TaskDonateClearSprite", id + TASK_DONATE_SPRITE);
+    set_task(g_flDonateDisplayTime, "TaskDonateClearSprite", id + TASK_DONATE_SPRITE);
 }
 
 public TaskDonateClearSprite(taskid)
@@ -2695,11 +2701,11 @@ DonateBroadcastMedia(const donorName[], const message[], amount, currency, tier)
         if(!is_user_connected(target)) continue;
 
         // Gonderen ismi ve bagis mesaji farkli renklerde, bes saniye gorunur.
-        set_hudmessage(255, 185, 55, 0.73, 0.025, 0, 0.0, 5.0, 0.05, 0.1, -1);
+        set_hudmessage(255, 185, 55, 0.73, 0.025, 0, 0.0, g_flDonateDisplayTime, 0.05, 0.1, -1);
         ShowSyncHudMsg(target, g_iDonateHudSync, "%s", donorName);
-        set_hudmessage(220, 195, 255, 0.73, 0.060, 0, 0.0, 5.0, 0.05, 0.1, -1);
+        set_hudmessage(220, 195, 255, 0.73, 0.060, 0, 0.0, g_flDonateDisplayTime, 0.05, 0.1, -1);
         ShowSyncHudMsg(target, g_iDonateMessageHudSync, "%s", message);
-        set_hudmessage(255, 220, 80, 0.76, 0.42, 0, 0.0, 5.0, 0.05, 0.1, -1);
+        set_hudmessage(255, 220, 80, 0.76, 0.42, 0, 0.0, g_flDonateDisplayTime, 0.05, 0.1, -1);
         ShowSyncHudMsg(target, g_iDonateAmountHudSync, "%s", amountText);
 
         if(!g_bDonateMediaEnabled[target]) continue;
@@ -10278,8 +10284,66 @@ PrecacheConfiguredAssets()
 }
 
 // ============================================================
-// CONFIG PARSER - TEK INI
+// CONFIG PARSER - JBMenu ve Donate ayarlari ayri dosyalardadir.
 // ============================================================
+
+LoadDonateConfig()
+{
+    g_DonateCfgCount = 0;
+    g_flDonateDisplayTime = 5.0;
+    new fp = fopen(DONATE_CFG_FILE, "rt");
+    if(!fp)
+    {
+        log_amx("[FC Donate] Config bulunamadi: %s", DONATE_CFG_FILE);
+        return;
+    }
+
+    new line[320], key[MAX_CFG_KEY], value[MAX_CFG_VAL];
+    while(!feof(fp) && g_DonateCfgCount < sizeof(g_DonateCfgKey))
+    {
+        fgets(fp, line, charsmax(line));
+        trim(line);
+        if(!line[0] || line[0] == ';' || line[0] == '#' || (line[0]=='/' && line[1]=='/'))
+            continue;
+        key[0] = 0;
+        value[0] = 0;
+        parse(line, key, charsmax(key), value, charsmax(value));
+        if(!key[0]) continue;
+        copy(g_DonateCfgKey[g_DonateCfgCount], MAX_CFG_KEY-1, key);
+        copy(g_DonateCfgVal[g_DonateCfgCount], MAX_CFG_VAL-1, value);
+        g_DonateCfgCount++;
+    }
+    fclose(fp);
+
+    g_flDonateDisplayTime = floatclamp(DonateCfgFloat("DISPLAY_TIME", 5.0), 1.0, 15.0);
+}
+
+DonateCfgStr(const key[], out[], len, const def[])
+{
+    for(new i; i < g_DonateCfgCount; i++)
+    {
+        if(equali(g_DonateCfgKey[i], key))
+        {
+            copy(out, len, g_DonateCfgVal[i]);
+            return;
+        }
+    }
+    copy(out, len, def);
+}
+
+DonateCfgInt(const key[], def)
+{
+    new value[64];
+    DonateCfgStr(key, value, charsmax(value), "");
+    return value[0] ? str_to_num(value) : def;
+}
+
+Float:DonateCfgFloat(const key[], Float:def)
+{
+    new value[64];
+    DonateCfgStr(key, value, charsmax(value), "");
+    return value[0] ? str_to_float(value) : def;
+}
 
 LoadConfig()
 {
