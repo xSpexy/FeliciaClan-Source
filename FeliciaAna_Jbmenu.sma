@@ -1251,7 +1251,6 @@ public pUserExit(id)
     g_bSoundMenuEnabled[id]=true;g_bKnifeSoundsEnabled[id]=true;g_bSoundSentRound[id]=false;
     g_bChatMessagesEnabled[id]=true;
     if(is_user_connected(id)) client_cmd(id,"hud_saytext 1");
-    g_bChatMessagesEnabled[id]=true;
     g_flSoundSpeakerUntil[id]=0.0;
     g_bInfoHudShown[id]=false;g_bRentalRefresh[id]=false;
     g_iTL[id] = 0;
@@ -1283,7 +1282,6 @@ ResetRuntime(id)
     g_bSoundMenuEnabled[id]=true;g_bKnifeSoundsEnabled[id]=true;g_bSoundSentRound[id]=false;
     g_bChatMessagesEnabled[id]=true;
     if(is_user_connected(id)) client_cmd(id,"hud_saytext 1");
-    g_bChatMessagesEnabled[id]=true;
     g_flSoundSpeakerUntil[id]=0.0;
     g_iDonateCurrency[id] = DONATE_CURRENCY_TL;
     g_iDonateAmount[id] = 0;
@@ -2811,9 +2809,9 @@ ShowFPSOptionsMenu(id)
     FC_MenuAddItem(menu, label, "4");
 
     if(g_bHidePets[id])
-        formatex(label, charsmax(label), "\wPet Sistemi \d[ \rGizli \d]");
+        formatex(label, charsmax(label), "\wPet Sistemi \d[ \yGöster \d]");
     else
-        formatex(label, charsmax(label), "\wPet Sistemi \d[ \yGösteriliyor \d]");
+        formatex(label, charsmax(label), "\wPet Sistemi \d[ \yGizle \d]");
     FC_MenuAddItem(menu, label, "5");
 
     // HUD secenegi bilerek en altta.
