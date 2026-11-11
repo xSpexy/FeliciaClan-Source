@@ -2151,7 +2151,7 @@ DonateSendSprite(id)
 
     // Kamera onune gore sag-ust konum: sprite oyuncunun bakisiyla birlikte hareket eder.
     new Float:origin[3], Float:viewOfs[3], Float:angles[3];
-    new Float:forward[3], Float:right[3], Float:up[3], Float:drawPos[3];
+    new Float:vecForward[3], Float:vecRight[3], Float:vecUp[3], Float:drawPos[3];
     pev(id, pev_origin, origin);
     pev(id, pev_view_ofs, viewOfs);
     pev(id, pev_v_angle, angles);
@@ -2159,14 +2159,14 @@ DonateSendSprite(id)
     origin[1] += viewOfs[1];
     origin[2] += viewOfs[2];
 
-    angle_vector(angles, ANGLEVECTOR_FORWARD, forward);
-    angle_vector(angles, ANGLEVECTOR_RIGHT, right);
-    angle_vector(angles, ANGLEVECTOR_UP, up);
+    angle_vector(angles, ANGLEVECTOR_FORWARD, vecForward);
+    angle_vector(angles, ANGLEVECTOR_RIGHT, vecRight);
+    angle_vector(angles, ANGLEVECTOR_UP, vecUp);
 
     for(new axis = 0; axis < 3; axis++)
     {
-        drawPos[axis] = origin[axis] + forward[axis] * 64.0
-            + right[axis] * 43.0 + up[axis] * 32.0;
+        drawPos[axis] = origin[axis] + vecForward[axis] * 64.0
+            + vecRight[axis] * 43.0 + vecUp[axis] * 32.0;
     }
 
     message_begin(MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, _, id);
