@@ -1190,6 +1190,7 @@ public client_disconnected(id)
     remove_task(id + TASK_DONATE_HUD_REFRESH);
     remove_task(id + TASK_DONATE_HUD_CLEAR);
     g_bDonateSpriteActive[id] = false;
+    g_bDonateSpriteSending[id] = false;
     g_bDonateUsedRound[id] = false;
     g_iPlayRewardMinutes[id] = 0;
     StopPreview(id,false);
@@ -1324,6 +1325,7 @@ ResetRuntime(id)
     remove_task(id + TASK_DONATE_HUD_REFRESH);
     remove_task(id + TASK_DONATE_HUD_CLEAR);
     g_bDonateSpriteActive[id] = false;
+    g_bDonateSpriteSending[id] = false;
     g_iTLSpent[id]=g_iCoinEarned[id]=g_iCoinSpent[id]=g_iExchangeRemainder[id]=0;
     g_iHPBought[id]=g_iBonusDailyNext[id]=g_iBonusPlayStamp[id]=0;g_bBonusRound[id]=false;
     g_iPreviewCos[id]=-1;g_iPreviewUID[id]=g_iPreviewCamera[id]=g_iPreviewProp[id]=0;g_iPreviewPose[id]=-1;g_flPreviewPoseStart[id]=0.0;g_bDetailHud[id]=false;g_iDetailStamp[id]=-1;
