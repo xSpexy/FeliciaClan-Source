@@ -588,6 +588,7 @@ new g_iTL[33];
 new g_iCoin[33];
 new bool:g_bDonateMediaEnabled[33];
 new bool:g_bSoundMenuEnabled[33],bool:g_bKnifeSoundsEnabled[33],bool:g_bSoundSentRound[33];
+new bool:g_bChatMessagesEnabled[33];
 new Array:g_aSoundMenuNames = Invalid_Array;
 new Array:g_aSoundMenuPaths = Invalid_Array;
 new Array:g_aSoundMenuPrices = Invalid_Array;
@@ -1082,7 +1083,7 @@ public plugin_init()
     RegisterHookChain(RG_CBasePlayer_TakeDamage, "HC_TakeDamage_Pre", false);
     RegisterHookChain(RG_CBasePlayerWeapon_DefaultDeploy, "HC_Deploy_Pre", false);
     register_forward(FM_PlayerPreThink, "Fwd_PlayerPreThink");
-    register_forward(FM_EmitSound, "Fwd_EmitSound_Post", true);
+    register_forward(FM_EmitSound, "Fwd_EmitSound_Pre", false);
     register_forward(FM_AddToFullPack,"PreviewPackPre",false);
     register_forward(FM_AddToFullPack,"PreviewPackPost",true);
     register_forward(FM_CmdStart,"PreviewCmdStart");
@@ -1248,6 +1249,9 @@ public pUserExit(id)
     g_iUID[id] = 0;g_iHudTeam[id]=-1;g_iRentalMenu[id]=-1;g_bClanTagEnabled[id]=false;g_bRankTagEnabled[id]=true;
     g_bDonateMediaEnabled[id] = true;
     g_bSoundMenuEnabled[id]=true;g_bKnifeSoundsEnabled[id]=true;g_bSoundSentRound[id]=false;
+    g_bChatMessagesEnabled[id]=true;
+    if(is_user_connected(id)) client_cmd(id,"hud_saytext 1");
+    g_bChatMessagesEnabled[id]=true;
     g_flSoundSpeakerUntil[id]=0.0;
     g_bInfoHudShown[id]=false;g_bRentalRefresh[id]=false;
     g_iTL[id] = 0;
@@ -1277,6 +1281,9 @@ ResetRuntime(id)
     g_iCoin[id] = 0;
     g_bDonateMediaEnabled[id] = true;
     g_bSoundMenuEnabled[id]=true;g_bKnifeSoundsEnabled[id]=true;g_bSoundSentRound[id]=false;
+    g_bChatMessagesEnabled[id]=true;
+    if(is_user_connected(id)) client_cmd(id,"hud_saytext 1");
+    g_bChatMessagesEnabled[id]=true;
     g_flSoundSpeakerUntil[id]=0.0;
     g_iDonateCurrency[id] = DONATE_CURRENCY_TL;
     g_iDonateAmount[id] = 0;
@@ -1410,6 +1417,8 @@ LoadPlayer(id)
     g_bDonateMediaEnabled[id] = bool:UIDGetInt(g_iUID[id], "donate_media", 1);
     g_bSoundMenuEnabled[id] = bool:UIDGetInt(g_iUID[id], "sound_menu_enabled", 1);
     g_bKnifeSoundsEnabled[id] = bool:UIDGetInt(g_iUID[id], "knife_sounds_enabled", 1);
+    g_bChatMessagesEnabled[id] = bool:UIDGetInt(g_iUID[id], "chat_messages_enabled", 1);
+    client_cmd(id, "hud_saytext %d", g_bChatMessagesEnabled[id] ? 1 : 0);
     g_bSoundSentRound[id] = UIDGetInt(g_iUID[id],"sound_round_stamp",0)==g_iJBRoundStamp;
     g_bDonateUsedRound[id] = UIDGetInt(g_iUID[id], "donate_round_stamp", 0) == g_iJBRoundStamp;
 
@@ -1484,6 +1493,7 @@ SavePlayer(id)
     UIDSetInt(g_iUID[id], "donate_media", g_bDonateMediaEnabled[id]);
     UIDSetInt(g_iUID[id], "sound_menu_enabled", g_bSoundMenuEnabled[id]);
     UIDSetInt(g_iUID[id], "knife_sounds_enabled", g_bKnifeSoundsEnabled[id]);
+    UIDSetInt(g_iUID[id], "chat_messages_enabled", g_bChatMessagesEnabled[id]);
     UIDSetInt(g_iUID[id], "sound_round_stamp", g_bSoundSentRound[id] ? g_iJBRoundStamp : 0);
 
     for(new i; i < COS_ITEM_COUNT; i++)
@@ -2774,23 +2784,49 @@ ShowFPSOptionsMenu(id)
     if(!CanUseJBMenu(id, true)) return;
 
     new menu = FC_MenuCreate("\wFPS Seçenekleri", "H_FPSOptions");
-    new label[96];
+    new label[128], hudMode[24];
+
     if(g_bDonateMediaEnabled[id])
         formatex(label, charsmax(label), "\wBağış Medyası \d[ \yAçık \d]");
     else
         formatex(label, charsmax(label), "\wBağış Medyası \d[ \rKapalı \d]");
-
     FC_MenuAddItem(menu, label, "1");
+
     if(g_bSoundMenuEnabled[id])
         formatex(label, charsmax(label), "\wSes Menüsü \d[ \yAçık \d]");
     else
         formatex(label, charsmax(label), "\wSes Menüsü \d[ \rKapalı \d]");
     FC_MenuAddItem(menu, label, "2");
+
     if(g_bKnifeSoundsEnabled[id])
         formatex(label, charsmax(label), "\wBıçak Sesleri \d[ \yAçık \d]");
     else
         formatex(label, charsmax(label), "\wBıçak Sesleri \d[ \rKapalı \d]");
     FC_MenuAddItem(menu, label, "3");
+
+    if(g_bChatMessagesEnabled[id])
+        formatex(label, charsmax(label), "\wSohbet Mesajları \d[ \yAçık \d]");
+    else
+        formatex(label, charsmax(label), "\wSohbet Mesajları \d[ \rKapalı \d]");
+    FC_MenuAddItem(menu, label, "4");
+
+    if(g_bHidePets[id])
+        formatex(label, charsmax(label), "\wPet Sistemi \d[ \rGizli \d]");
+    else
+        formatex(label, charsmax(label), "\wPet Sistemi \d[ \yGösteriliyor \d]");
+    FC_MenuAddItem(menu, label, "5");
+
+    // HUD secenegi bilerek en altta.
+    switch(g_iHudMode[id])
+    {
+        case HUDMODE_FULL: copy(hudMode, charsmax(hudMode), "Detaylı");
+        case HUDMODE_COMPACT: copy(hudMode, charsmax(hudMode), "Kompakt");
+        case HUDMODE_OFF: copy(hudMode, charsmax(hudMode), "Kapalı");
+        default: copy(hudMode, charsmax(hudMode), "Detaylı");
+    }
+    formatex(label, charsmax(label), "\wBilgi HUD'u \d[ \y%s \d]", hudMode);
+    FC_MenuAddItem(menu, label, "6");
+
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
 }
@@ -2822,7 +2858,6 @@ public H_FPSOptions(id, menu, item)
         if(g_iUID[id] > 0 && g_bProfileLoaded[id])
             UIDSetInt(g_iUID[id], "donate_media", g_bDonateMediaEnabled[id]);
         Chat(id, "Bağış medyası artık %s.", g_bDonateMediaEnabled[id] ? "açık" : "kapalı");
-        ShowFPSOptionsMenu(id);
     }
     else if(key == 2)
     {
@@ -2830,7 +2865,6 @@ public H_FPSOptions(id, menu, item)
         if(g_iUID[id]>0 && g_bProfileLoaded[id])
             UIDSetInt(g_iUID[id],"sound_menu_enabled",g_bSoundMenuEnabled[id]);
         Chat(id,"Ses Menüsü artık %s.",g_bSoundMenuEnabled[id]?"açık":"kapalı");
-        ShowFPSOptionsMenu(id);
     }
     else if(key == 3)
     {
@@ -2838,9 +2872,29 @@ public H_FPSOptions(id, menu, item)
         if(g_iUID[id]>0 && g_bProfileLoaded[id])
             UIDSetInt(g_iUID[id],"knife_sounds_enabled",g_bKnifeSoundsEnabled[id]);
         Chat(id,"Bıçak sesleri artık %s.",g_bKnifeSoundsEnabled[id]?"açık":"kapalı");
-        ShowFPSOptionsMenu(id);
+    }
+    else if(key == 4)
+    {
+        g_bChatMessagesEnabled[id]=!g_bChatMessagesEnabled[id];
+        if(g_iUID[id]>0 && g_bProfileLoaded[id])
+            UIDSetInt(g_iUID[id],"chat_messages_enabled",g_bChatMessagesEnabled[id]);
+        client_cmd(id,"hud_saytext %d",g_bChatMessagesEnabled[id] ? 1 : 0);
+        if(g_bChatMessagesEnabled[id])
+            Chat(id,"Sohbet mesajları açıldı.");
+        else
+            client_print(id,print_center,"Sohbet mesajları kapatıldı.");
+    }
+    else if(key == 5)
+    {
+        g_bHidePets[id]=!g_bHidePets[id];
+        Chat(id,g_bHidePets[id] ? "Pet modelleri senin ekranında gizlendi." : "Pet modelleri tekrar gösteriliyor.");
+    }
+    else if(key == 6)
+    {
+        CycleHudMode(id);
     }
 
+    ShowFPSOptionsMenu(id);
     return PLUGIN_HANDLED;
 }
 
@@ -3018,18 +3072,22 @@ public TaskSoundSpeakerIcon(taskid)
     message_end();
 }
 
-public Fwd_EmitSound_Post(entity,channel,const sample[],Float:volume,Float:attenuation,flags,pitch)
+public Fwd_EmitSound_Pre(entity,channel,const sample[],Float:volume,Float:attenuation,flags,pitch)
 {
-    if(containi(sample,"knife")==-1) return FMRES_IGNORED;
-    for(new id=1;id<=MaxClients;id++)
+    if(containi(sample,"knife")==-1)
+        return FMRES_IGNORED;
+
+    // Bıçak sesi kapalı olan istemcilere ses gönderilmez.
+    // Açık olanlara istemci tarafindan caldirilir; bozuk SVC_STOPSOUND paketi kullanilmaz.
+    for(new target=1;target<=MaxClients;target++)
     {
-        if(!is_user_connected(id) || g_bKnifeSoundsEnabled[id]) continue;
-        message_begin(MSG_ONE_UNRELIABLE,SVC_STOPSOUND,_,id);
-        write_short(entity);
-        write_byte(channel);
-        message_end();
+        if(!is_user_connected(target) || !g_bKnifeSoundsEnabled[target])
+            continue;
+
+        client_cmd(target,"spk ^"%s^"",sample);
     }
-    return FMRES_IGNORED;
+
+    return FMRES_SUPERCEDE;
 }
 
 // ============================================================
