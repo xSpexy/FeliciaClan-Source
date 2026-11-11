@@ -2185,8 +2185,6 @@ DonateClearSprite(id)
     if(id < 1 || id > MaxClients) return;
     remove_task(id + TASK_DONATE_SPRITE);
     remove_task(id + TASK_DONATE_REFRESH);
-    remove_task(id + TASK_DONATE_HUD_REFRESH);
-    remove_task(id + TASK_DONATE_HUD_CLEAR);
     g_bDonateSpriteActive[id] = false;
 }
 
