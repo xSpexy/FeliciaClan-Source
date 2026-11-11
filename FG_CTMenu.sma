@@ -1626,13 +1626,11 @@ stock CreatePingSprite(const Float:origin[3])
     set_entvar(ent,var_frame,0.0);
     set_entvar(ent,var_framerate,10.0);
     set_entvar(ent,var_scale,0.3);
-    // GlowShell, sprite'in duvar arkasindan gorunmesini denemek icin etkin.
-    new Float:glowColor[3];
-    glowColor[0]=35.0; glowColor[1]=255.0; glowColor[2]=95.0;
-    set_entvar(ent,var_renderfx,kRenderFxGlowShell);
-    set_entvar(ent,var_rendercolor,glowColor);
-    set_entvar(ent,var_rendermode,kRenderNormal);
-    set_entvar(ent,var_renderamt,30.0);
+    // SPR'nin transparan arka planini korumak icin additive render kullan.
+    // GlowShell normal GoldSrc sprite ciziminde duvar derinlik testini asmaz.
+    set_entvar(ent,var_renderfx,kRenderFxNone);
+    set_entvar(ent,var_rendermode,kRenderTransAdd);
+    set_entvar(ent,var_renderamt,255.0);
 
     // Sprite ve halkalar 2 saniyede kaybolur.
     set_task(2.0,"RemovePingSprite",ent+TASK_PING_SPRITE);
