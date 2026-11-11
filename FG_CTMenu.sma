@@ -1598,8 +1598,8 @@ stock CTPlacePing(id)
     g_pingSpriteOrigin[id][2]=center[2]+8.0;
     g_pingSpriteTicks[id]=0;
     PingSpriteThink(id+TASK_PING_SPRITE);
-    set_task(0.20,"PingSpriteThink",id+TASK_PING_SPRITE,_,_,"b");
-    LaserWallSendBeam(center,top,35,255,95,7,18);
+    set_task(0.05,"PingSpriteThink",id+TASK_PING_SPRITE,_,_,"b");
+    LaserWallSendBeam(center,top,35,255,95,7,20);
     for(new ring=0;ring<2;ring++) {
         new Float:radius=ring?22.0:14.0;
         for(new i=0;i<16;i++) {
@@ -1609,7 +1609,7 @@ stock CTPlacePing(id)
             a[1]=center[1]+floatsin(ang,degrees)*radius;a[2]=center[2]+float(ring)*2.0;
             b[0]=center[0]+floatcos(nextAng,degrees)*radius;
             b[1]=center[1]+floatsin(nextAng,degrees)*radius;b[2]=a[2];
-            LaserWallSendBeam(a,b,ring?35:75,ring?205:255,ring?75:125,ring?5:6,18);
+            LaserWallSendBeam(a,b,ring?35:75,ring?205:255,ring?75:125,ring?5:6,20);
         }
     }
     emit_sound(id,CHAN_ITEM,"buttons/blip1.wav",VOL_NORM,ATTN_NORM,0,PITCH_NORM);
@@ -1619,7 +1619,7 @@ public PingSpriteThink(taskid)
 {
     new id=taskid-TASK_PING_SPRITE;
     if(id<1 || id>MaxClients || !is_user_connected(id)) {remove_task(taskid);return;}
-    if(g_pingSpriteTicks[id]>=10) {remove_task(taskid);return;}
+    if(g_pingSpriteTicks[id]>=40) {remove_task(taskid);return;}
     message_begin(MSG_BROADCAST,SVC_TEMPENTITY);
     write_byte(TE_SPRITE);
     write_coord_f(g_pingSpriteOrigin[id][0]);
@@ -1630,7 +1630,7 @@ public PingSpriteThink(taskid)
     write_byte(255);
     message_end();
     g_pingSpriteTicks[id]++;
-    if(g_pingSpriteTicks[id]>=10) remove_task(taskid);
+    if(g_pingSpriteTicks[id]>=40) remove_task(taskid);
 }
 public CmdPing(id) {CTPlacePing(id);return PLUGIN_HANDLED;}
 public CmdPingRelease(id) {return PLUGIN_HANDLED;}
