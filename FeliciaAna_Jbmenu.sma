@@ -582,7 +582,7 @@ new g_CfgVal[MAX_CFG][MAX_CFG_VAL];
 // PLAYER DATA
 // ============================================================
 
-new g_iVault = INVALID_HANDLE;
+new _:g_iVault = _:INVALID_HANDLE;
 new g_iUID[33];
 new g_iTL[33];
 new g_iCoin[33];
