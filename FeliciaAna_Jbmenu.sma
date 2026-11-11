@@ -2063,8 +2063,8 @@ DonatePrecacheMedia()
     new bool:allFramesReady;
     new const weaponNames[DONATE_CURRENCY_COUNT][3][32] =
     {
-        { "weapon_fcdonate_tl1", "weapon_fcdonate_tl2", "weapon_fcdonate_tl3" },
-        { "weapon_fcdonate_coin1", "weapon_fcdonate_coin2", "weapon_fcdonate_coin3" }
+        { "weapon_fcdon2_tl1", "weapon_fcdon2_tl2", "weapon_fcdon2_tl3" },
+        { "weapon_fcdon2_coin1", "weapon_fcdon2_coin2", "weapon_fcdon2_coin3" }
     };
 
     for(new currency = 0; currency < DONATE_CURRENCY_COUNT; currency++)
@@ -2092,7 +2092,7 @@ DonatePrecacheMedia()
             {
                 formatex(frameSpriteName, charsmax(frameSpriteName), "%s_%d", spriteName, frame);
                 formatex(framePath, charsmax(framePath), "sprites/%s.spr", frameSpriteName);
-                formatex(frameWeaponName, charsmax(frameWeaponName), "weapon_fcdonate_%s%d_f%d",
+                formatex(frameWeaponName, charsmax(frameWeaponName), "weapon_fcdon2_%s%d_f%d",
                     currency == DONATE_CURRENCY_COIN ? "coin" : "tl", tier + 1, frame);
                 copy(g_szDonateWeaponFrameName[currency][tier][frame * 32],
                     31, frameWeaponName);
@@ -2138,25 +2138,66 @@ DonatePrecacheMedia()
     }
 }
 
-// GoldSrc weapon HUD definition: the sprite is drawn by the client's
-// crosshair renderer at a fixed upper-right screen offset. Weapon ID 2 is
-// unused by Counter-Strike and is only sent to the client during the notice.
+// GoldSrc SPR header: IDSP, version, type, texFormat, bounding radius,
+// width, height, frame count, beam length and sync type. The HUD API uses
+// the real dimensions instead of assuming every donation sprite is 128x80.
+bool:DonateReadSpriteDimensions(const spritePath[], &width, &height)
+{
+    new fileSize = file_size(spritePath);
+    if(fileSize < 32) return false;
+
+    new file = fopen(spritePath, "rb");
+    if(!file) return false;
+
+    new ident, version;
+    new bool:valid = (fread(file, ident, BLOCK_INT) == 1
+        && fread(file, version, BLOCK_INT) == 1
+        && ident == 0x50534449 && version == 2);
+
+    if(valid)
+    {
+        fseek(file, 20, SEEK_SET);
+        if(fread(file, width, BLOCK_INT) != 1
+            || fread(file, height, BLOCK_INT) != 1)
+            valid = false;
+    }
+
+    fclose(file);
+    return valid && width > 0 && width <= 256 && height > 0 && height <= 256;
+}
+
+// Same positioning model as Sprites on Hud: offsets are measured from the
+// screen centre, while the SPR keeps its real native pixel dimensions.
+// A new WeaponList filename (v2) forces clients to fetch the updated HUD file
+// instead of silently reusing an older cached definition.
 bool:DonateWriteWeaponDefinition(const weaponName[], const spriteName[])
 {
-    new path[128];
-    formatex(path, charsmax(path), "sprites/%s.txt", weaponName);
+    new spritePath[192], txtPath[128], width, height;
+    formatex(spritePath, charsmax(spritePath), "sprites/%s.spr", spriteName);
+    if(!DonateReadSpriteDimensions(spritePath, width, height))
+    {
+        log_amx("[Donate] SPR header/size invalid: %s", spritePath);
+        return false;
+    }
 
-    new file = fopen(path, "wt");
+    // Keep 14 px margins from the upper and right edges in both HUD profiles.
+    new offsetX320 = 160 - 14 - width / 2;
+    new offsetY320 = 14 + height / 2 - 120;
+    new offsetX640 = 320 - 14 - width / 2;
+    new offsetY640 = 14 + height / 2 - 240;
+
+    formatex(txtPath, charsmax(txtPath), "sprites/%s.txt", weaponName);
+    new file = fopen(txtPath, "wt");
     if(!file) return false;
 
     fputs(file, "2^n");
-    // 128x80 SPR: her iki çözünürlükte de ekranın sağ üstünde ve tamamen görünür.
-    // Offset değerleri ekran merkezine göredir; 640 profili daha geniş ekran için ayrı hesaplanır.
-    fprintf(file, "crosshair 320 %s 80 -60 128 80^n", spriteName);
-    fprintf(file, "crosshair 640 %s 240 -180 128 80^n", spriteName);
+    fprintf(file, "crosshair 320 %s %d %d %d %d^n",
+        spriteName, offsetX320, offsetY320, width, height);
+    fprintf(file, "crosshair 640 %s %d %d %d %d^n",
+        spriteName, offsetX640, offsetY640, width, height);
     fclose(file);
 
-    precache_generic(path);
+    precache_generic(txtPath);
     return true;
 }
 
