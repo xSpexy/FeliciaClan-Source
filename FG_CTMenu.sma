@@ -1564,9 +1564,8 @@ public LaserWallThink()
                 new Float:oldMaxSpeed;
                 get_entvar(target,var_maxspeed,oldMaxSpeed);
                 ExecuteHamB(Ham_TakeDamage,target,owner,owner,100.0,DMG_ENERGYBEAM);
-                if(is_user_alive(target)) {
-                    ExecuteHamB(Ham_Player_ResetMaxSpeed,target);
-                    if(oldMaxSpeed>0.0) set_entvar(target,var_maxspeed,oldMaxSpeed);
+                if(is_user_alive(target) && oldMaxSpeed>0.0) {
+                    set_entvar(target,var_maxspeed,oldMaxSpeed);
                 }
             } else if(!touch) g_wallInside[owner][target]=false;
         }
