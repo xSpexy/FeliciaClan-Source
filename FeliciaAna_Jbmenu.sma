@@ -2910,7 +2910,7 @@ public H_FPSOptions(id, menu, item)
         if(!g_bDonateMediaEnabled[id]) DonateClearSprite(id);
         if(g_iUID[id] > 0 && g_bProfileLoaded[id])
             UIDSetInt(g_iUID[id], "donate_media", g_bDonateMediaEnabled[id]);
-        Chat(id, "Bağış medyası artık %s.", g_bDonateMediaEnabled[id] ? "açık" : "kapalı");
+        Chat(id, "Bağış medyası artık %s.", g_bDonateMediaEnabled[id] ? "gösteriliyor" : "gizli");
     }
     else if(key == 2)
     {
