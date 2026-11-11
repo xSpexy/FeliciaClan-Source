@@ -705,8 +705,9 @@ new g_fwPrepare, g_fwStarted, g_fwFinished, g_menuCallback;
 new g_fwRocketPrepare,g_fwRocketFinished;
 new g_beam, g_lineBeam, g_vault;
 #define TASK_LASER_WALL 741320
-#define LASER_WALL_HALF_WIDTH 220.0
+#define LASER_WALL_HALF_WIDTH 175.0
 #define LASER_WALL_TOUCH_DISTANCE 24.0
+#define PING_COOLDOWN 3.0
 new bool:g_wallActive[MAXP+1];
 new g_wallUsageCount,g_wallUsageAuth[MAXP+1][40];
 new bool:g_wallInside[MAXP+1][MAXP+1];
@@ -1283,6 +1284,8 @@ public LegacyInit() {
     register_clcmd("say /silah", "silahmenu");
     register_clcmd("say /adminlik", "adminlik");
     register_clcmd("say /skorlar", "anlikpuan");
+    register_clcmd("+ping", "CmdPing");
+    register_clcmd("-ping", "CmdPingRelease");
 
     
     register_clcmd("T_HP_BELIRLE", "t_hp");
@@ -1469,21 +1472,21 @@ stock LaserWallSendBeam(const Float:start[3], const Float:end[3], red, green, bl
 stock LaserWallDraw(owner)
 {
     if(owner<1 || owner>MaxClients || !g_wallActive[owner]) return;
-    new Float:a[3],Float:b[3],Float:ta[3],Float:tb[3];
+    new Float:a[3],Float:b[3];
     new Float:dx=g_wallEnd[owner][0]-g_wallStart[owner][0];
     new Float:dy=g_wallEnd[owner][1]-g_wallStart[owner][1];
-    for(new i=0;i<=8;i++) {
-        new Float:f=float(i)/8.0;
-        a[0]=g_wallStart[owner][0]+dx*f;a[1]=g_wallStart[owner][1]+dy*f;a[2]=g_wallMinZ[owner];
-        ta[0]=a[0];ta[1]=a[1];ta[2]=g_wallMaxZ[owner];
-        LaserWallSendBeam(a,ta,255,35,35,7,220);
+    for(new i=0;i<=14;i++) {
+        new Float:f=float(i)/14.0;
+        a[0]=g_wallStart[owner][0]+dx*f;a[1]=g_wallStart[owner][1]+dy*f;a[2]=g_wallMinZ[owner]+5.0;
+        b[0]=a[0];b[1]=a[1];b[2]=g_wallMaxZ[owner]-5.0;
+        LaserWallSendBeam(a,b,255,35,45,16,220);
     }
-    a[0]=g_wallStart[owner][0];a[1]=g_wallStart[owner][1];a[2]=g_wallMinZ[owner];
-    b[0]=g_wallEnd[owner][0];b[1]=g_wallEnd[owner][1];b[2]=g_wallMinZ[owner];
-    ta[0]=a[0];ta[1]=a[1];ta[2]=g_wallMaxZ[owner];
-    tb[0]=b[0];tb[1]=b[1];tb[2]=g_wallMaxZ[owner];
-    LaserWallSendBeam(a,b,255,20,20,8,220);
-    LaserWallSendBeam(ta,tb,255,20,20,8,220);
+    for(new row=0;row<=4;row++) {
+        new Float:z=g_wallMinZ[owner]+(g_wallMaxZ[owner]-g_wallMinZ[owner])*float(row)/4.0;
+        a[0]=g_wallStart[owner][0];a[1]=g_wallStart[owner][1];a[2]=z;
+        b[0]=g_wallEnd[owner][0];b[1]=g_wallEnd[owner][1];b[2]=z;
+        LaserWallSendBeam(a,b,255,15,25,14,220);
+    }
 }
 stock LaserWallRemove(owner)
 {
@@ -1527,7 +1530,7 @@ stock CreateLaserWall(id)
     g_wallStart[id][1]=float(aim[1])-ry*LASER_WALL_HALF_WIDTH;
     g_wallEnd[id][0]=float(aim[0])+rx*LASER_WALL_HALF_WIDTH;
     g_wallEnd[id][1]=float(aim[1])+ry*LASER_WALL_HALF_WIDTH;
-    g_wallMinZ[id]=float(aim[2])-48.0;g_wallMaxZ[id]=float(aim[2])+112.0;
+    g_wallMinZ[id]=float(aim[2])-36.0;g_wallMaxZ[id]=float(aim[2])+92.0;
     g_wallStart[id][2]=g_wallMinZ[id];g_wallEnd[id][2]=g_wallMinZ[id];
     g_wallActive[id]=true;g_wallOwnerUID[id]=get_user_userid(id);
     g_wallNextDraw[id]=get_gametime()+15.0;
@@ -1558,7 +1561,13 @@ public LaserWallThink()
                 && LaserWallDistance2D(origin,g_wallStart[owner],g_wallEnd[owner])<=LASER_WALL_TOUCH_DISTANCE);
             if(touch && !g_wallInside[owner][target]) {
                 g_wallInside[owner][target]=true;
+                new Float:oldMaxSpeed;
+                get_entvar(target,var_maxspeed,oldMaxSpeed);
                 ExecuteHamB(Ham_TakeDamage,target,owner,owner,100.0,DMG_ENERGYBEAM);
+                if(is_user_alive(target)) {
+                    ExecuteHamB(Ham_Player_ResetMaxSpeed,target);
+                    if(oldMaxSpeed>0.0) set_entvar(target,var_maxspeed,oldMaxSpeed);
+                }
             } else if(!touch) g_wallInside[owner][target]=false;
         }
     }
@@ -1567,17 +1576,36 @@ stock CTPlacePing(id)
 {
     if(!AliveCT(id)) {Chat(id,"Ping göndermek için yaşayan gardiyan olmalısın.");return;}
     if(g_bridgeRoundClosed || g_game || g_rocketActive) return;
-    new Float:now=get_gametime();if(now<g_pingNext[id]) return;g_pingNext[id]=now+1.0;
+    new Float:now=get_gametime();
+    if(now<g_pingNext[id]) {
+        new remaining=floatround(g_pingNext[id]-now,floatround_ceil);
+        set_hudmessage(80,220,255,-1.0,0.72,0,0.0,0.85,0.05,0.1,4);
+        show_hudmessage(id,"PING BEKLEME^n%d saniye",remaining);
+        return;
+    }
+    g_pingNext[id]=now+PING_COOLDOWN;
     new aim[3];get_user_origin(id,aim,3);
-    new Float:a[3],Float:b[3],Float:l[3],Float:r[3],Float:f[3],Float:bk[3];
-    a[0]=float(aim[0]);a[1]=float(aim[1]);a[2]=float(aim[2])+4.0;
-    b[0]=a[0];b[1]=a[1];b[2]=a[2]+112.0;
-    l[0]=a[0]-24.0;l[1]=a[1];l[2]=a[2]+4.0;r[0]=a[0]+24.0;r[1]=a[1];r[2]=a[2]+4.0;
-    f[0]=a[0];f[1]=a[1]-24.0;f[2]=a[2]+4.0;bk[0]=a[0];bk[1]=a[1]+24.0;bk[2]=a[2]+4.0;
-    LaserWallSendBeam(a,b,40,220,80,8,25);LaserWallSendBeam(l,r,40,220,80,8,25);LaserWallSendBeam(f,bk,40,220,80,8,25);
+    new Float:center[3],Float:top[3],Float:a[3],Float:b[3];
+    center[0]=float(aim[0]);center[1]=float(aim[1]);center[2]=float(aim[2])+5.0;
+    top[0]=center[0];top[1]=center[1];top[2]=center[2]+78.0;
+    LaserWallSendBeam(center,top,55,235,160,18,35);
+    for(new ring=0;ring<2;ring++) {
+        new Float:radius=ring?30.0:20.0;
+        for(new i=0;i<12;i++) {
+            new Float:ang=float(i)*30.0;
+            new Float:nextAng=float(i+1)*30.0;
+            a[0]=center[0]+floatcos(ang,degrees)*radius;
+            a[1]=center[1]+floatsin(ang,degrees)*radius;a[2]=center[2]+float(ring)*2.0;
+            b[0]=center[0]+floatcos(nextAng,degrees)*radius;
+            b[1]=center[1]+floatsin(nextAng,degrees)*radius;b[2]=a[2];
+            LaserWallSendBeam(a,b,ring?35:90,ring?190:255,ring?255:210,ring?12:18,35);
+        }
+    }
+    emit_sound(id,CHAN_ITEM,"buttons/blip1.wav",VOL_NORM,ATTN_NORM,0,PITCH_NORM);
     client_print_color(0,id,"^1[^3FeliciaClan^1] ^3%n ^1konuma ping gönderdi.",id);
 }
 public CmdPing(id) {CTPlacePing(id);return PLUGIN_HANDLED;}
+public CmdPingRelease(id) {return PLUGIN_HANDLED;}
 public CmdLaserWall(id) {CreateLaserWall(id);return PLUGIN_HANDLED;}
 
 public ctmenu(id) {
@@ -1633,7 +1661,7 @@ public ctmenu(id) {
         RA_MenuAddItem(Menu,"\wAktif Oyunu Durdur","90");
         RA_MenuAddItem(Menu,"\wPet Turnuvası","91");
         RA_MenuAddItem(Menu,"\wLazer Duvarı \d[\yTurda 1 kez\d]","92");
-        RA_MenuAddItem(Menu,"\wPing Gönder \d[\ySağ tık\d]","93");
+        RA_MenuAddItem(Menu,"\wPing Gönder \d[\yBind: +ping\d]","93");
 
         menu_setprop(Menu, MPROP_NUMBER_COLOR, "\r");
         menu_setprop(Menu, MPROP_NEXTNAME, "\wDiger Sayfa");
@@ -8551,8 +8579,6 @@ public OnCmdStart(id,uc,seed) {
     if(id<1 || id>MaxClients || !is_user_alive(id)) return FMRES_IGNORED;
     new buttons=get_uc(uc,UC_Buttons),rising=buttons&~g_prevButtons[id];
     g_prevButtons[id]=buttons;
-    if(AliveCT(id) && (rising&IN_ATTACK2) && !g_game && !g_rocketActive)
-        CTPlacePing(id);
     if(!g_game && !g_hard && !g_rocketActive && !g_buriedUID[id]) return FMRES_IGNORED;
     // Normal C4 burial does not alter jump input or bunny velocity. The old
     // jump-key C4Lift shortcut is absent; only explicit CT controls release it.
@@ -9488,6 +9514,7 @@ public plugin_precache() {
     precache_model(g_lootModel);
     g_beam=precache_model(file_exists(BEAM_SPRITE) ? BEAM_SPRITE : "sprites/laserbeam.spr");
     g_lineBeam=precache_model("sprites/laserbeam.spr");
+    precache_sound("buttons/blip1.wav");
 }
 
 public plugin_init() {
