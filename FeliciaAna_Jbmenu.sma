@@ -591,6 +591,7 @@ new bool:g_bSoundMenuEnabled[33],bool:g_bKnifeSoundsEnabled[33],bool:g_bSoundSen
 new bool:g_bChatMessagesEnabled[33];
 new bool:g_bKnifeSkinsVisible[33],bool:g_bPlayerModelsVisible[33],bool:g_bPrisonerPlayersVisible[33];
 new g_iDefaultPKnifeModel;
+new g_iBaseKnifePModelIndex[5];
 new Array:g_aSoundMenuNames = Invalid_Array;
 new Array:g_aSoundMenuPaths = Invalid_Array;
 new Array:g_aSoundMenuPrices = Invalid_Array;
@@ -9195,37 +9196,35 @@ public HC_Deploy_Pre(const weapon, szViewModel[], szWeaponModel[], anim, szAnimE
 
     if(HW_Player(id)) return;
 
-    // Preview kendi gorunumunu oncelikli tutar; FPS tercihi kapaliysa varsayilan V modeli goster.
-    if(id>=1 && id<=MaxClients && g_iPreviewCos[id]>=0
+    new v[96], p[96];
+    new base = (get_member(id, m_iTeam) == TEAM_CT) ? 1 : g_iBaseKnife[id];
+    if(base < 0 || base > 4)
+        base = (get_member(id, m_iTeam) == TEAM_CT) ? 1 : 0;
+
+    // Skin incelemesi aciksa ve kullanici skinleri gosteriyorsa preview kullan.
+    if(g_bKnifeSkinsVisible[id] && g_iPreviewCos[id]>=0
         && g_CosKind[g_iPreviewCos[id]]==COS_KNIFE)
     {
-        if(g_bKnifeSkinsVisible[id])
-            SetHookChainArg(2,ATYPE_STRING,g_szPreviewAsset[g_iPreviewCos[id]]);
-        else
-            SetHookChainArg(2,ATYPE_STRING,"models/v_knife.mdl");
+        SetHookChainArg(2,ATYPE_STRING,g_szPreviewAsset[g_iPreviewCos[id]]);
         return;
     }
 
-    // Aktif kozmetik bicak skini base bicagin gorunusunu ezer, hasari degistirmez.
+    // Kisisel ayar kapaliysa envanter kozmetik skinini atla.
+    // Ana Market'ten satin alinmis bicak modeli base olarak uygulanmaya devam eder.
     new cos = g_iSelectedCos[id][COS_KNIFE];
-    if(cos >= 0 && OwnsCosmetic(id, cos) && CanUseCosmetic(id, cos))
+    if(g_bKnifeSkinsVisible[id] && cos >= 0
+        && OwnsCosmetic(id, cos) && CanUseCosmetic(id, cos))
     {
-        new v[96], p[96];
         CosCfgStr(cos, "VMODEL", v, charsmax(v), "xxx");
         CosCfgStr(cos, "PMODEL", p, charsmax(p), "xxx");
 
-        if(!g_bKnifeSkinsVisible[id] || !IsRealAsset(v))
-            copy(v,charsmax(v),"models/v_knife.mdl");
         if(IsRealAsset(v)) SetHookChainArg(2, ATYPE_STRING, v);
         if(IsRealAsset(p)) SetHookChainArg(3, ATYPE_STRING, p);
         return;
     }
 
-    new v[96], p[96];
-    new base = (get_member(id, m_iTeam) == TEAM_CT) ? 1 : g_iBaseKnife[id];
+    // Skin gizliyken veya oyuncu bir kozmetik skin kullanmiyorken Ana Market bicagi.
     BaseKnifeModels(base, v, charsmax(v), p, charsmax(p));
-    if(!g_bKnifeSkinsVisible[id] || !IsRealAsset(v))
-        copy(v,charsmax(v),"models/v_knife.mdl");
     if(IsRealAsset(v)) SetHookChainArg(2, ATYPE_STRING, v);
     if(IsRealAsset(p)) SetHookChainArg(3, ATYPE_STRING, p);
 }
@@ -9554,10 +9553,13 @@ RefreshActiveKnifeModels(id)
 
     new v[96], p[96];
     new base = (get_member(id, m_iTeam) == TEAM_CT) ? 1 : g_iBaseKnife[id];
+    if(base < 0 || base > 4)
+        base = (get_member(id, m_iTeam) == TEAM_CT) ? 1 : 0;
     BaseKnifeModels(base, v, charsmax(v), p, charsmax(p));
 
+    // Envanter skinini yalnizca kullanici skinleri goruyorsa uygula.
     new idx = g_iSelectedCos[id][COS_KNIFE];
-    if(OwnsCosmetic(id, idx) && CanUseCosmetic(id, idx))
+    if(g_bKnifeSkinsVisible[id] && OwnsCosmetic(id, idx) && CanUseCosmetic(id, idx))
     {
         new custom[96];
         CosCfgStr(idx, "VMODEL", custom, charsmax(custom), "xxx");
@@ -9566,7 +9568,7 @@ RefreshActiveKnifeModels(id)
         if(IsRealAsset(custom)) copy(p, charsmax(p), custom);
     }
 
-    if(!g_bKnifeSkinsVisible[id] || !IsRealAsset(v)) copy(v, charsmax(v), "models/v_knife.mdl");
+    if(!IsRealAsset(v)) copy(v, charsmax(v), "models/v_knife.mdl");
     if(!IsRealAsset(p)) copy(p, charsmax(p), "models/p_knife.mdl");
     set_entvar(id, var_viewmodel, v);
     set_entvar(id, var_weaponmodel, p);
@@ -10061,6 +10063,17 @@ PrecacheConfiguredAssets()
     {
         CfgStr(knifeKeys[i], path, charsmax(path), "xxx");
         if(IsRealAsset(path)) precache_model(path);
+    }
+
+    // Ana Market bicaklarinin ucuncu sahis P-model indeksleri.
+    for(new base=0; base<5; base++)
+    {
+        new vModel[96], pModel[96];
+        BaseKnifeModels(base, vModel, charsmax(vModel), pModel, charsmax(pModel));
+        if(IsRealAsset(pModel))
+            g_iBaseKnifePModelIndex[base] = engfunc(EngFunc_ModelIndex, pModel);
+        else
+            g_iBaseKnifePModelIndex[base] = g_iDefaultPKnifeModel;
     }
 
     for(new i; i < COS_ITEM_COUNT; i++)
@@ -10579,11 +10592,19 @@ public PreviewPackPost(es,e,ent,host,flags,player,pSet)
             set_es(es,ES_Effects,get_es(es,ES_Effects)|EF_NODRAW);
         }
 
-        // Third-person knife model is replaced per viewer, without changing the owner's model for everyone.
-        if(!g_bKnifeSkinsVisible[host] && g_iDefaultPKnifeModel>0
-            && is_user_alive(ent) && get_user_weapon(ent)==CSW_KNIFE)
+        // Skinleri gizleyen izleyiciye oyuncunun Ana Market bicagi gosterilir.
+        if(!g_bKnifeSkinsVisible[host] && is_user_alive(ent)
+            && get_user_weapon(ent)==CSW_KNIFE)
         {
-            set_es(es,ES_WeaponModel,g_iDefaultPKnifeModel);
+            new base = (get_member(ent,m_iTeam)==TEAM_CT) ? 1 : g_iBaseKnife[ent];
+            if(base < 0 || base > 4)
+                base = (get_member(ent,m_iTeam)==TEAM_CT) ? 1 : 0;
+
+            new modelIndex = g_iBaseKnifePModelIndex[base];
+            if(modelIndex <= 0)
+                modelIndex = g_iDefaultPKnifeModel;
+            if(modelIndex > 0)
+                set_es(es,ES_WeaponModel,modelIndex);
         }
     }
 
