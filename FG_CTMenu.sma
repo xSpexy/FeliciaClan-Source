@@ -1599,7 +1599,7 @@ stock CTPlacePing(id)
     g_pingSpriteTicks[id]=0;
     PingSpriteThink(id+TASK_PING_SPRITE);
     set_task(0.20,"PingSpriteThink",id+TASK_PING_SPRITE,_,_,"b");
-    LaserWallSendBeam(center,top,35,255,95,10,35);
+    LaserWallSendBeam(center,top,35,255,95,7,18);
     for(new ring=0;ring<2;ring++) {
         new Float:radius=ring?22.0:14.0;
         for(new i=0;i<16;i++) {
@@ -1609,7 +1609,7 @@ stock CTPlacePing(id)
             a[1]=center[1]+floatsin(ang,degrees)*radius;a[2]=center[2]+float(ring)*2.0;
             b[0]=center[0]+floatcos(nextAng,degrees)*radius;
             b[1]=center[1]+floatsin(nextAng,degrees)*radius;b[2]=a[2];
-            LaserWallSendBeam(a,b,ring?35:75,ring?205:255,ring?75:125,ring?8:10,35);
+            LaserWallSendBeam(a,b,ring?35:75,ring?205:255,ring?75:125,ring?5:6,18);
         }
     }
     emit_sound(id,CHAN_ITEM,"buttons/blip1.wav",VOL_NORM,ATTN_NORM,0,PITCH_NORM);
@@ -1626,7 +1626,7 @@ public PingSpriteThink(taskid)
     write_coord_f(g_pingSpriteOrigin[id][1]);
     write_coord_f(g_pingSpriteOrigin[id][2]);
     write_short(g_pingSprite);
-    write_byte(14);
+    write_byte(6);
     write_byte(255);
     message_end();
     g_pingSpriteTicks[id]++;
