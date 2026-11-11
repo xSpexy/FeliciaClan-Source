@@ -2163,7 +2163,8 @@ bool:DonateReadSpriteDimensions(const spritePath[], &width, &height)
     }
 
     fclose(file);
-    return valid && width > 0 && width <= 256 && height > 0 && height <= 256;
+    // Large source SPRs are allowed; the HUD definition scales them down.
+    return valid && width > 0 && width <= 4096 && height > 0 && height <= 4096;
 }
 
 // Same positioning model as Sprites on Hud: offsets are measured from the
@@ -2180,11 +2181,19 @@ bool:DonateWriteWeaponDefinition(const weaponName[], const spriteName[])
         return false;
     }
 
+    // Keep the sprite compact regardless of the source SPR dimensions.
+    // Aspect ratio is preserved and the rendered image fits inside 128x80.
+    new Float:scaleX = 128.0 / float(width);
+    new Float:scaleY = 80.0 / float(height);
+    new Float:scale = floatmin(scaleX, scaleY);
+    new drawWidth = max(1, floatround(float(width) * scale));
+    new drawHeight = max(1, floatround(float(height) * scale));
+
     // Keep 14 px margins from the upper and right edges in both HUD profiles.
-    new offsetX320 = 160 - 14 - width / 2;
-    new offsetY320 = 14 + height / 2 - 120;
-    new offsetX640 = 320 - 14 - width / 2;
-    new offsetY640 = 14 + height / 2 - 240;
+    new offsetX320 = 160 - 14 - drawWidth / 2;
+    new offsetY320 = 14 + drawHeight / 2 - 120;
+    new offsetX640 = 320 - 14 - drawWidth / 2;
+    new offsetY640 = 14 + drawHeight / 2 - 240;
 
     formatex(txtPath, charsmax(txtPath), "sprites/%s.txt", weaponName);
     new file = fopen(txtPath, "wt");
@@ -2192,9 +2201,9 @@ bool:DonateWriteWeaponDefinition(const weaponName[], const spriteName[])
 
     fputs(file, "2^n");
     fprintf(file, "crosshair 320 %s %d %d %d %d^n",
-        spriteName, offsetX320, offsetY320, width, height);
+        spriteName, offsetX320, offsetY320, drawWidth, drawHeight);
     fprintf(file, "crosshair 640 %s %d %d %d %d^n",
-        spriteName, offsetX640, offsetY640, width, height);
+        spriteName, offsetX640, offsetY640, drawWidth, drawHeight);
     fclose(file);
 
     precache_generic(txtPath);
@@ -2256,12 +2265,13 @@ DonateSendSprite(id)
 
     message_begin(MSG_ONE, g_iDonateMsgWeaponList, _, id);
     write_string(weaponName);
-    write_byte(-1);
-    write_byte(0);
-    write_byte(-1);
+    // Match the working Reflex HUD WeaponList layout exactly.
     write_byte(0);
     write_byte(0);
-    write_byte(11);
+    write_byte(0);
+    write_byte(0);
+    write_byte(0);
+    write_byte(0);
     write_byte(2);
     write_byte(0);
     message_end();
