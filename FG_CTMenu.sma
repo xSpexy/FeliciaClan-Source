@@ -716,8 +716,6 @@ new g_wallOwnerUID[MAXP+1];
 new Float:g_wallStart[MAXP+1][3], Float:g_wallEnd[MAXP+1][3];
 new Float:g_wallMinZ[MAXP+1], Float:g_wallMaxZ[MAXP+1], Float:g_wallNextDraw[MAXP+1];
 new Float:g_pingNext[MAXP+1];
-new Float:g_pingSpriteOrigin[MAXP+1][3];
-new g_pingSpriteTicks[MAXP+1];
 new g_cvarFF, g_cvarFFA, g_cvarInfinite;
 new g_oldFF[24], g_oldFFA[24], g_oldInfinite[32];
 new bool:g_cvarsSaved;
@@ -1591,14 +1589,8 @@ stock CTPlacePing(id)
     new Float:center[3],Float:top[3],Float:a[3],Float:b[3];
     center[0]=float(aim[0]);center[1]=float(aim[1]);center[2]=float(aim[2])+5.0;
     top[0]=center[0];top[1]=center[1];top[2]=center[2]+54.0;
-    // SPR tek seferlik efekt oldugu icin 2 saniye boyunca yeniden goster.
-    remove_task(id+TASK_PING_SPRITE);
-    g_pingSpriteOrigin[id][0]=center[0];
-    g_pingSpriteOrigin[id][1]=center[1];
-    g_pingSpriteOrigin[id][2]=center[2]+8.0;
-    g_pingSpriteTicks[id]=0;
-    PingSpriteThink(id+TASK_PING_SPRITE);
-    set_task(0.05,"PingSpriteThink",id+TASK_PING_SPRITE,_,_,"b");
+    // Sprite varligi 2 saniye sonra silinir; beam efektleriyle ayni anda biter.
+    CreatePingSprite(center);
     LaserWallSendBeam(center,top,35,255,95,7,20);
     for(new ring=0;ring<2;ring++) {
         new Float:radius=ring?22.0:14.0;
@@ -1615,22 +1607,35 @@ stock CTPlacePing(id)
     emit_sound(id,CHAN_ITEM,"buttons/blip1.wav",VOL_NORM,ATTN_NORM,0,PITCH_NORM);
     client_print_color(0,id,"^1[^3FeliciaClan^1] ^3%n ^1konuma ping gönderdi.",id);
 }
-public PingSpriteThink(taskid)
+stock CreatePingSprite(const Float:origin[3])
 {
-    new id=taskid-TASK_PING_SPRITE;
-    if(id<1 || id>MaxClients || !is_user_connected(id)) {remove_task(taskid);return;}
-    if(g_pingSpriteTicks[id]>=40) {remove_task(taskid);return;}
-    message_begin(MSG_BROADCAST,SVC_TEMPENTITY);
-    write_byte(TE_SPRITE);
-    write_coord_f(g_pingSpriteOrigin[id][0]);
-    write_coord_f(g_pingSpriteOrigin[id][1]);
-    write_coord_f(g_pingSpriteOrigin[id][2]);
-    write_short(g_pingSprite);
-    write_byte(6);
-    write_byte(255);
-    message_end();
-    g_pingSpriteTicks[id]++;
-    if(g_pingSpriteTicks[id]>=40) remove_task(taskid);
+    new ent=create_entity("env_sprite");
+    if(!ent) return 0;
+
+    DispatchKeyValue(ent,"model","sprites/ledglow.spr");
+    DispatchSpawn(ent);
+
+    set_entvar(ent,var_classname,"felicia_ping_sprite");
+    set_entvar(ent,var_origin,origin);
+    set_entvar(ent,var_movetype,MOVETYPE_NONE);
+    set_entvar(ent,var_solid,SOLID_NOT);
+    set_entvar(ent,var_modelindex,g_pingSprite);
+    set_entvar(ent,var_scale,0.18);
+
+    // Glow shell ile duvar arkasi gorunurluk denemesi.
+    set_entvar(ent,var_renderfx,kRenderFxGlowShell);
+    set_entvar(ent,var_rendermode,kRenderTransAdd);
+    set_entvar(ent,var_renderamt,255.0);
+    new Float:glowColor[3]={35.0,255.0,95.0};
+    set_entvar(ent,var_rendercolor,glowColor);
+
+    set_task(2.0,"RemovePingSprite",ent+TASK_PING_SPRITE);
+    return ent;
+}
+public RemovePingSprite(taskid)
+{
+    new ent=taskid-TASK_PING_SPRITE;
+    if(is_valid_ent(ent)) remove_entity(ent);
 }
 public CmdPing(id) {CTPlacePing(id);return PLUGIN_HANDLED;}
 public CmdPingRelease(id) {return PLUGIN_HANDLED;}
