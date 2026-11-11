@@ -589,6 +589,8 @@ new g_iCoin[33];
 new bool:g_bDonateMediaEnabled[33];
 new bool:g_bSoundMenuEnabled[33],bool:g_bKnifeSoundsEnabled[33],bool:g_bSoundSentRound[33];
 new bool:g_bChatMessagesEnabled[33];
+new bool:g_bKnifeSkinsVisible[33],bool:g_bPlayerModelsVisible[33],bool:g_bPrisonerPlayersVisible[33];
+new g_iDefaultPKnifeModel;
 new Array:g_aSoundMenuNames = Invalid_Array;
 new Array:g_aSoundMenuPaths = Invalid_Array;
 new Array:g_aSoundMenuPrices = Invalid_Array;
@@ -929,6 +931,7 @@ public plugin_precache()
 {
     LoadConfig();
     LoadSoundMenuConfig();
+    g_iDefaultPKnifeModel = precache_model("models/p_knife.mdl");
     if(file_exists("sprites/voiceicon.spr")) g_iSoundSpeakerSprite=precache_model("sprites/voiceicon.spr");
     else if(file_exists("sprites/voice.spr")) g_iSoundSpeakerSprite=precache_model("sprites/voice.spr");
     DonatePrecacheMedia();
@@ -1250,6 +1253,9 @@ public pUserExit(id)
     g_bDonateMediaEnabled[id] = true;
     g_bSoundMenuEnabled[id]=true;g_bKnifeSoundsEnabled[id]=true;g_bSoundSentRound[id]=false;
     g_bChatMessagesEnabled[id]=true;
+    g_bKnifeSkinsVisible[id]=true;
+    g_bPlayerModelsVisible[id]=true;
+    g_bPrisonerPlayersVisible[id]=true;
     if(is_user_connected(id)) client_cmd(id,"hud_saytext 1");
     g_flSoundSpeakerUntil[id]=0.0;
     g_bInfoHudShown[id]=false;g_bRentalRefresh[id]=false;
@@ -1281,6 +1287,9 @@ ResetRuntime(id)
     g_bDonateMediaEnabled[id] = true;
     g_bSoundMenuEnabled[id]=true;g_bKnifeSoundsEnabled[id]=true;g_bSoundSentRound[id]=false;
     g_bChatMessagesEnabled[id]=true;
+    g_bKnifeSkinsVisible[id]=true;
+    g_bPlayerModelsVisible[id]=true;
+    g_bPrisonerPlayersVisible[id]=true;
     if(is_user_connected(id)) client_cmd(id,"hud_saytext 1");
     g_flSoundSpeakerUntil[id]=0.0;
     g_iDonateCurrency[id] = DONATE_CURRENCY_TL;
@@ -1416,6 +1425,9 @@ LoadPlayer(id)
     g_bSoundMenuEnabled[id] = bool:UIDGetInt(g_iUID[id], "sound_menu_enabled", 1);
     g_bKnifeSoundsEnabled[id] = bool:UIDGetInt(g_iUID[id], "knife_sounds_enabled", 1);
     g_bChatMessagesEnabled[id] = bool:UIDGetInt(g_iUID[id], "chat_messages_enabled", 1);
+    g_bKnifeSkinsVisible[id] = bool:UIDGetInt(g_iUID[id], "knife_skins_visible", 1);
+    g_bPlayerModelsVisible[id] = bool:UIDGetInt(g_iUID[id], "player_models_visible", 1);
+    g_bPrisonerPlayersVisible[id] = bool:UIDGetInt(g_iUID[id], "prisoner_players_visible", 1);
     client_cmd(id, "hud_saytext %d", g_bChatMessagesEnabled[id] ? 1 : 0);
     g_bSoundSentRound[id] = UIDGetInt(g_iUID[id],"sound_round_stamp",0)==g_iJBRoundStamp;
     g_bDonateUsedRound[id] = UIDGetInt(g_iUID[id], "donate_round_stamp", 0) == g_iJBRoundStamp;
@@ -1492,6 +1504,9 @@ SavePlayer(id)
     UIDSetInt(g_iUID[id], "sound_menu_enabled", g_bSoundMenuEnabled[id]);
     UIDSetInt(g_iUID[id], "knife_sounds_enabled", g_bKnifeSoundsEnabled[id]);
     UIDSetInt(g_iUID[id], "chat_messages_enabled", g_bChatMessagesEnabled[id]);
+    UIDSetInt(g_iUID[id], "knife_skins_visible", g_bKnifeSkinsVisible[id]);
+    UIDSetInt(g_iUID[id], "player_models_visible", g_bPlayerModelsVisible[id]);
+    UIDSetInt(g_iUID[id], "prisoner_players_visible", g_bPrisonerPlayersVisible[id]);
     UIDSetInt(g_iUID[id], "sound_round_stamp", g_bSoundSentRound[id] ? g_iJBRoundStamp : 0);
 
     for(new i; i < COS_ITEM_COUNT; i++)
@@ -2814,7 +2829,25 @@ ShowFPSOptionsMenu(id)
         formatex(label, charsmax(label), "\wPet Sistemi \d[ \yGizle \d]");
     FC_MenuAddItem(menu, label, "5");
 
-    // HUD secenegi bilerek en altta.
+    if(g_bKnifeSkinsVisible[id])
+        formatex(label, charsmax(label), "\wBıçak Skinleri \d[ \yGöster \d]");
+    else
+        formatex(label, charsmax(label), "\wBıçak Skinleri \d[ \rGizle \d]");
+    FC_MenuAddItem(menu, label, "6");
+
+    if(g_bPlayerModelsVisible[id])
+        formatex(label, charsmax(label), "\wOyuncu Modelleri \d[ \yGöster \d]");
+    else
+        formatex(label, charsmax(label), "\wOyuncu Modelleri \d[ \rGizle \d]");
+    FC_MenuAddItem(menu, label, "7");
+
+    if(g_bPrisonerPlayersVisible[id])
+        formatex(label, charsmax(label), "\wMahkûm Oyuncuları \d[ \yGöster \d]");
+    else
+        formatex(label, charsmax(label), "\wMahkûm Oyuncuları \d[ \rGizle \d]");
+    FC_MenuAddItem(menu, label, "8");
+
+    // HUD secenegi bilerek en alta.
     switch(g_iHudMode[id])
     {
         case HUDMODE_FULL: copy(hudMode, charsmax(hudMode), "Detaylı");
@@ -2823,7 +2856,7 @@ ShowFPSOptionsMenu(id)
         default: copy(hudMode, charsmax(hudMode), "Detaylı");
     }
     formatex(label, charsmax(label), "\wBilgi HUD'u \d[ \y%s \d]", hudMode);
-    FC_MenuAddItem(menu, label, "6");
+    FC_MenuAddItem(menu, label, "9");
 
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
@@ -2888,6 +2921,29 @@ public H_FPSOptions(id, menu, item)
         Chat(id,g_bHidePets[id] ? "Pet modelleri senin ekranında gizlendi." : "Pet modelleri tekrar gösteriliyor.");
     }
     else if(key == 6)
+    {
+        g_bKnifeSkinsVisible[id]=!g_bKnifeSkinsVisible[id];
+        if(g_iUID[id]>0 && g_bProfileLoaded[id])
+            UIDSetInt(g_iUID[id],"knife_skins_visible",g_bKnifeSkinsVisible[id]);
+        if(is_user_alive(id) && get_user_weapon(id)==CSW_KNIFE)
+            RefreshActiveKnifeModels(id);
+        Chat(id,"Bıçak skinleri artık %s.",g_bKnifeSkinsVisible[id]?"görünüyor":"gizli");
+    }
+    else if(key == 7)
+    {
+        g_bPlayerModelsVisible[id]=!g_bPlayerModelsVisible[id];
+        if(g_iUID[id]>0 && g_bProfileLoaded[id])
+            UIDSetInt(g_iUID[id],"player_models_visible",g_bPlayerModelsVisible[id]);
+        Chat(id,"Özel oyuncu modelleri artık %s.",g_bPlayerModelsVisible[id]?"görünüyor":"gizli");
+    }
+    else if(key == 8)
+    {
+        g_bPrisonerPlayersVisible[id]=!g_bPrisonerPlayersVisible[id];
+        if(g_iUID[id]>0 && g_bProfileLoaded[id])
+            UIDSetInt(g_iUID[id],"prisoner_players_visible",g_bPrisonerPlayersVisible[id]);
+        Chat(id,"Mahkûm oyuncular artık %s.",g_bPrisonerPlayersVisible[id]?"görünüyor":"gizli");
+    }
+    else if(key == 9)
     {
         CycleHudMode(id);
     }
@@ -9134,10 +9190,21 @@ public Fwd_PlayerPreThink(id)
 public HC_Deploy_Pre(const weapon, szViewModel[], szWeaponModel[], anim, szAnimExt[], skiplocal)
 {
     new id = get_member(weapon, m_pPlayer);
-    if(id>=1 && id<=MaxClients && g_iPreviewCos[id]>=0 && g_CosKind[g_iPreviewCos[id]]==COS_KNIFE && get_member(weapon,m_iId)==WEAPON_KNIFE) {SetHookChainArg(2,ATYPE_STRING,g_szPreviewAsset[g_iPreviewCos[id]]);return;}
-    if(HW_Player(id)) return;
     if(!is_user_alive(id) || get_member(weapon, m_iId) != WEAPON_KNIFE)
         return;
+
+    if(HW_Player(id)) return;
+
+    // Preview kendi gorunumunu oncelikli tutar; FPS tercihi kapaliysa varsayilan V modeli goster.
+    if(id>=1 && id<=MaxClients && g_iPreviewCos[id]>=0
+        && g_CosKind[g_iPreviewCos[id]]==COS_KNIFE)
+    {
+        if(g_bKnifeSkinsVisible[id])
+            SetHookChainArg(2,ATYPE_STRING,g_szPreviewAsset[g_iPreviewCos[id]]);
+        else
+            SetHookChainArg(2,ATYPE_STRING,"models/v_knife.mdl");
+        return;
+    }
 
     // Aktif kozmetik bicak skini base bicagin gorunusunu ezer, hasari degistirmez.
     new cos = g_iSelectedCos[id][COS_KNIFE];
@@ -9147,6 +9214,8 @@ public HC_Deploy_Pre(const weapon, szViewModel[], szWeaponModel[], anim, szAnimE
         CosCfgStr(cos, "VMODEL", v, charsmax(v), "xxx");
         CosCfgStr(cos, "PMODEL", p, charsmax(p), "xxx");
 
+        if(!g_bKnifeSkinsVisible[id] || !IsRealAsset(v))
+            copy(v,charsmax(v),"models/v_knife.mdl");
         if(IsRealAsset(v)) SetHookChainArg(2, ATYPE_STRING, v);
         if(IsRealAsset(p)) SetHookChainArg(3, ATYPE_STRING, p);
         return;
@@ -9155,6 +9224,8 @@ public HC_Deploy_Pre(const weapon, szViewModel[], szWeaponModel[], anim, szAnimE
     new v[96], p[96];
     new base = (get_member(id, m_iTeam) == TEAM_CT) ? 1 : g_iBaseKnife[id];
     BaseKnifeModels(base, v, charsmax(v), p, charsmax(p));
+    if(!g_bKnifeSkinsVisible[id] || !IsRealAsset(v))
+        copy(v,charsmax(v),"models/v_knife.mdl");
     if(IsRealAsset(v)) SetHookChainArg(2, ATYPE_STRING, v);
     if(IsRealAsset(p)) SetHookChainArg(3, ATYPE_STRING, p);
 }
@@ -9495,7 +9566,7 @@ RefreshActiveKnifeModels(id)
         if(IsRealAsset(custom)) copy(p, charsmax(p), custom);
     }
 
-    if(!IsRealAsset(v)) copy(v, charsmax(v), "models/v_knife.mdl");
+    if(!g_bKnifeSkinsVisible[id] || !IsRealAsset(v)) copy(v, charsmax(v), "models/v_knife.mdl");
     if(!IsRealAsset(p)) copy(p, charsmax(p), "models/p_knife.mdl");
     set_entvar(id, var_viewmodel, v);
     set_entvar(id, var_weaponmodel, p);
@@ -10491,19 +10562,51 @@ public PreviewPackPre(es,e,ent,host,flags,player,pSet)
 }
 public PreviewPackPost(es,e,ent,host,flags,player,pSet)
 {
-    if(!g_iPreviewCount) return FMRES_IGNORED;
-    if(host<1 || host>MaxClients || g_iPreviewCos[host]<0) return FMRES_IGNORED;
-    if(!((player && ent==host) || (ent>0 && ent==g_iWingEnt[host]))) return FMRES_IGNORED;
-    if(g_iPreviewUID[host]!=get_user_userid(host)) return FMRES_IGNORED;
+    if(host<1 || host>MaxClients || !is_user_connected(host))
+        return FMRES_IGNORED;
+
+    // Kisisel gorunurluk filtreleri: AddToFullPack her izleyici icin ayri paket uretir.
+    if(player && ent>=1 && ent<=MaxClients && is_user_connected(ent))
+    {
+        if(ent!=host && !g_bPrisonerPlayersVisible[host]
+            && get_member(ent,m_iTeam)==TEAM_TERRORIST)
+        {
+            set_es(es,ES_Effects,get_es(es,ES_Effects)|EF_NODRAW);
+        }
+        else if(!g_bPlayerModelsVisible[host] && g_bCosmeticPlayerModel[ent])
+        {
+            // Oyuncu modelleri ayari yalnizca FeliciaClan karakter skinlerini gizler.
+            set_es(es,ES_Effects,get_es(es,ES_Effects)|EF_NODRAW);
+        }
+
+        // Third-person knife model is replaced per viewer, without changing the owner's model for everyone.
+        if(!g_bKnifeSkinsVisible[host] && g_iDefaultPKnifeModel>0
+            && is_user_alive(ent) && get_user_weapon(ent)==CSW_KNIFE)
+        {
+            set_es(es,ES_WeaponModel,g_iDefaultPKnifeModel);
+        }
+    }
+
+    if(!g_iPreviewCount || g_iPreviewCos[host]<0)
+        return FMRES_IGNORED;
+    if(!((player && ent==host) || (ent>0 && ent==g_iWingEnt[host])))
+        return FMRES_IGNORED;
+    if(g_iPreviewUID[host]!=get_user_userid(host))
+        return FMRES_IGNORED;
+
     new idx=g_iPreviewCos[host];
-    if(player && ent==host && g_CosKind[idx]==COS_PLAYER && is_valid_ent(g_iPreviewProp[host])) {
+    if(player && ent==host && g_CosKind[idx]==COS_PLAYER && is_valid_ent(g_iPreviewProp[host]))
+    {
         // Owner sees the private normal studio entity; all other viewers keep
         // the real server player, original costume, weapon and live animation.
         set_es(es,ES_Effects,get_es(es,ES_Effects)|EF_NODRAW);
-        set_es(es,ES_RenderMode,kRenderTransTexture);set_es(es,ES_RenderAmt,0);
+        set_es(es,ES_RenderMode,kRenderTransTexture);
+        set_es(es,ES_RenderAmt,0);
         set_es(es,ES_WeaponModel,0);
     }
-    if(ent==g_iWingEnt[host] && g_CosKind[idx]==COS_WING) set_es(es,ES_Effects,get_es(es,ES_Effects)|EF_NODRAW);
+    if(ent==g_iWingEnt[host] && g_CosKind[idx]==COS_WING)
+        set_es(es,ES_Effects,get_es(es,ES_Effects)|EF_NODRAW);
+
     return FMRES_IGNORED;
 }
 public PreviewCmdStart(id,uc,seed)
