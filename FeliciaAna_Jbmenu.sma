@@ -590,6 +590,7 @@ new bool:g_bDonateMediaEnabled[33];
 new bool:g_bSoundMenuEnabled[33],bool:g_bKnifeSoundsEnabled[33],bool:g_bSoundSentRound[33];
 new bool:g_bChatMessagesEnabled[33];
 new bool:g_bKnifeSkinsVisible[33],bool:g_bPlayerModelsVisible[33],bool:g_bPrisonerPlayersVisible[33];
+new bool:g_bTrailsVisible[33],bool:g_bDeathEffectsVisible[33];
 new g_iDefaultPKnifeModel;
 new g_iBaseKnifePModelIndex[5];
 new Array:g_aSoundMenuNames = Invalid_Array;
@@ -1257,6 +1258,8 @@ public pUserExit(id)
     g_bKnifeSkinsVisible[id]=true;
     g_bPlayerModelsVisible[id]=true;
     g_bPrisonerPlayersVisible[id]=true;
+    g_bTrailsVisible[id]=true;
+    g_bDeathEffectsVisible[id]=true;
     if(is_user_connected(id)) client_cmd(id,"hud_saytext 1");
     g_flSoundSpeakerUntil[id]=0.0;
     g_bInfoHudShown[id]=false;g_bRentalRefresh[id]=false;
@@ -1291,6 +1294,8 @@ ResetRuntime(id)
     g_bKnifeSkinsVisible[id]=true;
     g_bPlayerModelsVisible[id]=true;
     g_bPrisonerPlayersVisible[id]=true;
+    g_bTrailsVisible[id]=true;
+    g_bDeathEffectsVisible[id]=true;
     if(is_user_connected(id)) client_cmd(id,"hud_saytext 1");
     g_flSoundSpeakerUntil[id]=0.0;
     g_iDonateCurrency[id] = DONATE_CURRENCY_TL;
@@ -1429,6 +1434,8 @@ LoadPlayer(id)
     g_bKnifeSkinsVisible[id] = bool:UIDGetInt(g_iUID[id], "knife_skins_visible", 1);
     g_bPlayerModelsVisible[id] = bool:UIDGetInt(g_iUID[id], "player_models_visible", 1);
     g_bPrisonerPlayersVisible[id] = bool:UIDGetInt(g_iUID[id], "prisoner_players_visible", 1);
+    g_bTrailsVisible[id] = bool:UIDGetInt(g_iUID[id], "trails_visible", 1);
+    g_bDeathEffectsVisible[id] = bool:UIDGetInt(g_iUID[id], "death_effects_visible", 1);
     client_cmd(id, "hud_saytext %d", g_bChatMessagesEnabled[id] ? 1 : 0);
     g_bSoundSentRound[id] = UIDGetInt(g_iUID[id],"sound_round_stamp",0)==g_iJBRoundStamp;
     g_bDonateUsedRound[id] = UIDGetInt(g_iUID[id], "donate_round_stamp", 0) == g_iJBRoundStamp;
@@ -1508,6 +1515,8 @@ SavePlayer(id)
     UIDSetInt(g_iUID[id], "knife_skins_visible", g_bKnifeSkinsVisible[id]);
     UIDSetInt(g_iUID[id], "player_models_visible", g_bPlayerModelsVisible[id]);
     UIDSetInt(g_iUID[id], "prisoner_players_visible", g_bPrisonerPlayersVisible[id]);
+    UIDSetInt(g_iUID[id], "trails_visible", g_bTrailsVisible[id]);
+    UIDSetInt(g_iUID[id], "death_effects_visible", g_bDeathEffectsVisible[id]);
     UIDSetInt(g_iUID[id], "sound_round_stamp", g_bSoundSentRound[id] ? g_iJBRoundStamp : 0);
 
     for(new i; i < COS_ITEM_COUNT; i++)
@@ -2801,9 +2810,9 @@ ShowFPSOptionsMenu(id)
     new label[128], hudMode[24];
 
     if(g_bDonateMediaEnabled[id])
-        formatex(label, charsmax(label), "\wBağış Medyası \d[ \yAçık \d]");
+        formatex(label, charsmax(label), "\wBağış Medyası \d[ \yGöster \d]");
     else
-        formatex(label, charsmax(label), "\wBağış Medyası \d[ \rKapalı \d]");
+        formatex(label, charsmax(label), "\wBağış Medyası \d[ \rGizle \d]");
     FC_MenuAddItem(menu, label, "1");
 
     if(g_bSoundMenuEnabled[id])
@@ -2848,6 +2857,18 @@ ShowFPSOptionsMenu(id)
         formatex(label, charsmax(label), "\wMahkûm Oyuncuları \d[ \rGizle \d]");
     FC_MenuAddItem(menu, label, "8");
 
+    if(g_bTrailsVisible[id])
+        formatex(label, charsmax(label), "\wTrail Efektleri \d[ \yGöster \d]");
+    else
+        formatex(label, charsmax(label), "\wTrail Efektleri \d[ \rGizle \d]");
+    FC_MenuAddItem(menu, label, "9");
+
+    if(g_bDeathEffectsVisible[id])
+        formatex(label, charsmax(label), "\wÖlüm Efektleri \d[ \yGöster \d]");
+    else
+        formatex(label, charsmax(label), "\wÖlüm Efektleri \d[ \rGizle \d]");
+    FC_MenuAddItem(menu, label, "10");
+
     // HUD secenegi bilerek en alta.
     switch(g_iHudMode[id])
     {
@@ -2857,7 +2878,7 @@ ShowFPSOptionsMenu(id)
         default: copy(hudMode, charsmax(hudMode), "Detaylı");
     }
     formatex(label, charsmax(label), "\wBilgi HUD'u \d[ \y%s \d]", hudMode);
-    FC_MenuAddItem(menu, label, "9");
+    FC_MenuAddItem(menu, label, "11");
 
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
@@ -2945,6 +2966,24 @@ public H_FPSOptions(id, menu, item)
         Chat(id,"Mahkûm oyuncular artık %s.",g_bPrisonerPlayersVisible[id]?"görünüyor":"gizli");
     }
     else if(key == 9)
+    {
+        g_bTrailsVisible[id]=!g_bTrailsVisible[id];
+        if(g_iUID[id]>0 && g_bProfileLoaded[id])
+            UIDSetInt(g_iUID[id],"trails_visible",g_bTrailsVisible[id]);
+        if(g_bTrailsVisible[id])
+            RefreshTrailsForClient(id);
+        else
+            ClearTrailsForClient(id);
+        Chat(id,"Trail efektleri artık %s.",g_bTrailsVisible[id]?"görünüyor":"gizli");
+    }
+    else if(key == 10)
+    {
+        g_bDeathEffectsVisible[id]=!g_bDeathEffectsVisible[id];
+        if(g_iUID[id]>0 && g_bProfileLoaded[id])
+            UIDSetInt(g_iUID[id],"death_effects_visible",g_bDeathEffectsVisible[id]);
+        Chat(id,"Ölüm efektleri artık %s.",g_bDeathEffectsVisible[id]?"görünüyor":"gizli");
+    }
+    else if(key == 11)
     {
         CycleHudMode(id);
     }
@@ -9763,10 +9802,17 @@ KillTrail(id)
     if(id < 1 || id > MaxClients || !g_bTrailActive[id])
         return;
 
-    message_begin(MSG_BROADCAST, SVC_TEMPENTITY);
-    write_byte(TE_KILLBEAM);
-    write_short(id);
-    message_end();
+    // Her istemcide bu oyuncuya ait mevcut trail'i temizle.
+    for(new target=1;target<=MaxClients;target++)
+    {
+        if(!is_user_connected(target))
+            continue;
+
+        message_begin(MSG_ONE_UNRELIABLE,SVC_TEMPENTITY,{0,0,0},target);
+        write_byte(TE_KILLBEAM);
+        write_short(id);
+        message_end();
+    }
 
     g_bTrailActive[id] = false;
     g_flTrailExpiresAt[id] = 0.0;
@@ -9830,6 +9876,66 @@ public TaskVisualRefresh()
     }
 }
 
+stock SendTrailToClient(owner,target,idx,trailLife,r,g,b)
+{
+    if(!is_user_connected(target) || !g_bTrailsVisible[target])
+        return;
+
+    message_begin(MSG_ONE_UNRELIABLE,SVC_TEMPENTITY,{0,0,0},target);
+    write_byte(TE_BEAMFOLLOW);
+    write_short(owner);
+    write_short(g_iSpriteIndex[idx]);
+    write_byte(trailLife);
+    write_byte(6);
+    write_byte(r);
+    write_byte(g);
+    write_byte(b);
+    write_byte(180);
+    message_end();
+}
+
+stock ClearTrailsForClient(target)
+{
+    if(target<1 || target>MaxClients || !is_user_connected(target))
+        return;
+
+    for(new owner=1;owner<=MaxClients;owner++)
+    {
+        if(!g_bTrailActive[owner])
+            continue;
+
+        message_begin(MSG_ONE_UNRELIABLE,SVC_TEMPENTITY,{0,0,0},target);
+        write_byte(TE_KILLBEAM);
+        write_short(owner);
+        message_end();
+    }
+}
+
+stock RefreshTrailsForClient(target)
+{
+    if(target<1 || target>MaxClients || !is_user_connected(target)
+        || !g_bTrailsVisible[target])
+        return;
+
+    for(new owner=1;owner<=MaxClients;owner++)
+    {
+        if(!g_bTrailActive[owner] || !is_user_alive(owner)
+            || get_member(owner,m_iTeam)!=TEAM_TERRORIST || HW_Player(owner))
+            continue;
+
+        new idx=g_iSelectedCos[owner][COS_TRAIL];
+        if(idx<0 || !OwnsCosmetic(owner,idx) || !CanUseCosmetic(owner,idx)
+            || g_iSpriteIndex[idx]<=0)
+            continue;
+
+        new rgb[48],r,g,b;
+        CosCfgStr(idx,"RGB",rgb,charsmax(rgb),"170,0,255");
+        ParseRGB(rgb,r,g,b);
+        new trailLife=clamp(floatround(CfgFloat("TRAIL_LIFE_SECONDS",1.5)*10.0),3,50);
+        SendTrailToClient(owner,target,idx,trailLife,r,g,b);
+    }
+}
+
 EmitTrail(id)
 {
     if(HW_Player(id)) return;
@@ -9842,20 +9948,10 @@ EmitTrail(id)
     ParseRGB(rgb,r,g,b);
 
     // TE_BEAMFOLLOW omru 0.1 saniye birimindedir; sadece iz segmentleri solar.
-    // Onceki 210 degeri 21 saniyelik iz birakiyordu. Ekipman secimi devam eder.
     new trailLife = clamp(floatround(CfgFloat("TRAIL_LIFE_SECONDS", 1.5) * 10.0), 3, 50);
 
-    message_begin(MSG_BROADCAST, SVC_TEMPENTITY);
-    write_byte(TE_BEAMFOLLOW);
-    write_short(id);
-    write_short(g_iSpriteIndex[idx]);
-    write_byte(trailLife);
-    write_byte(6);
-    write_byte(r);
-    write_byte(g);
-    write_byte(b);
-    write_byte(180);
-    message_end();
+    for(new target=1;target<=MaxClients;target++)
+        SendTrailToClient(id,target,idx,trailLife,r,g,b);
 
     g_bTrailActive[id] = true;
     g_flTrailLife[id] = float(trailLife) / 10.0;
@@ -9876,16 +9972,22 @@ PlayKillEffect(attacker, victim)
     new Float:origin[3];
     get_entvar(victim, var_origin, origin);
 
-    message_begin(MSG_BROADCAST, SVC_TEMPENTITY);
-    write_byte(TE_EXPLOSION);
-    write_coord_f(origin[0]);
-    write_coord_f(origin[1]);
-    write_coord_f(origin[2] + 20.0);
-    write_short(g_iSpriteIndex[idx]);
-    write_byte(8);
-    write_byte(12);
-    write_byte(TE_EXPLFLAG_NOSOUND | TE_EXPLFLAG_NODLIGHTS);
-    message_end();
+    for(new target=1;target<=MaxClients;target++)
+    {
+        if(!is_user_connected(target) || !g_bDeathEffectsVisible[target])
+            continue;
+
+        message_begin(MSG_ONE_UNRELIABLE,SVC_TEMPENTITY,origin,target);
+        write_byte(TE_EXPLOSION);
+        write_coord_f(origin[0]);
+        write_coord_f(origin[1]);
+        write_coord_f(origin[2] + 20.0);
+        write_short(g_iSpriteIndex[idx]);
+        write_byte(8);
+        write_byte(12);
+        write_byte(TE_EXPLFLAG_NOSOUND | TE_EXPLFLAG_NODLIGHTS);
+        message_end();
+    }
 }
 
 // ============================================================
