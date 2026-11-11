@@ -705,6 +705,7 @@ new g_fwPrepare, g_fwStarted, g_fwFinished, g_menuCallback;
 new g_fwRocketPrepare,g_fwRocketFinished;
 new g_beam, g_lineBeam, g_vault, g_pingSprite;
 #define TASK_LASER_WALL 741320
+#define TASK_PING_SPRITE 741321
 #define LASER_WALL_HALF_WIDTH 125.0
 #define LASER_WALL_TOUCH_DISTANCE 24.0
 #define PING_COOLDOWN 3.0
@@ -715,6 +716,8 @@ new g_wallOwnerUID[MAXP+1];
 new Float:g_wallStart[MAXP+1][3], Float:g_wallEnd[MAXP+1][3];
 new Float:g_wallMinZ[MAXP+1], Float:g_wallMaxZ[MAXP+1], Float:g_wallNextDraw[MAXP+1];
 new Float:g_pingNext[MAXP+1];
+new Float:g_pingSpriteOrigin[MAXP+1][3];
+new g_pingSpriteTicks[MAXP+1];
 new g_cvarFF, g_cvarFFA, g_cvarInfinite;
 new g_oldFF[24], g_oldFFA[24], g_oldInfinite[32];
 new bool:g_cvarsSaved;
@@ -1480,13 +1483,13 @@ stock LaserWallDraw(owner)
         new Float:f=float(i)/10.0;
         a[0]=g_wallStart[owner][0]+dx*f;a[1]=g_wallStart[owner][1]+dy*f;a[2]=g_wallMinZ[owner]+3.0;
         b[0]=a[0];b[1]=a[1];b[2]=g_wallMaxZ[owner]-3.0;
-        LaserWallSendBeam(a,b,70,255,125,8,220);
+        LaserWallSendBeam(a,b,70,255,125,15,4);
     }
     for(new row=0;row<=6;row++) {
         new Float:z=g_wallMinZ[owner]+(g_wallMaxZ[owner]-g_wallMinZ[owner])*float(row)/6.0;
         a[0]=g_wallStart[owner][0];a[1]=g_wallStart[owner][1];a[2]=z;
         b[0]=g_wallEnd[owner][0];b[1]=g_wallEnd[owner][1];b[2]=z;
-        LaserWallSendBeam(a,b,45,235,105,8,220);
+        LaserWallSendBeam(a,b,45,235,105,14,4);
     }
 }
 stock LaserWallRemove(owner)
@@ -1534,7 +1537,7 @@ stock CreateLaserWall(id)
     g_wallMinZ[id]=float(aim[2])-24.0;g_wallMaxZ[id]=float(aim[2])+70.0;
     g_wallStart[id][2]=g_wallMinZ[id];g_wallEnd[id][2]=g_wallMinZ[id];
     g_wallActive[id]=true;g_wallOwnerUID[id]=get_user_userid(id);
-    g_wallNextDraw[id]=get_gametime()+15.0;
+    g_wallNextDraw[id]=get_gametime()+0.30;
     for(new target=1;target<=MaxClients;target++) g_wallInside[id][target]=false;
     LaserWallDraw(id);
     client_print_color(0,id,"^1[^3FeliciaClan^1] ^3%n ^1bir lazer duvarı kurdu! Duvarı geçen mahkûmlar ^3100 HP^1 hasar alır.",id);
@@ -1554,7 +1557,7 @@ public LaserWallThink()
     for(new owner=1;owner<=MaxClients;owner++) {
         if(!g_wallActive[owner]) continue;
         if(!is_user_connected(owner) || get_user_userid(owner)!=g_wallOwnerUID[owner]) {LaserWallRemove(owner);continue;}
-        if(now>=g_wallNextDraw[owner]) {LaserWallDraw(owner);g_wallNextDraw[owner]=now+15.0;}
+        if(now>=g_wallNextDraw[owner]) {LaserWallDraw(owner);g_wallNextDraw[owner]=now+0.30;}
         for(new target=1;target<=MaxClients;target++) {
             if(!AliveT(target)) {g_wallInside[owner][target]=false;continue;}
             new Float:origin[3];get_entvar(target,var_origin,origin);
@@ -1588,12 +1591,14 @@ stock CTPlacePing(id)
     new Float:center[3],Float:top[3],Float:a[3],Float:b[3];
     center[0]=float(aim[0]);center[1]=float(aim[1]);center[2]=float(aim[2])+5.0;
     top[0]=center[0];top[1]=center[1];top[2]=center[2]+54.0;
-    // Glow sprite ve yesil dis halka.
-    message_begin(MSG_BROADCAST,SVC_TEMPENTITY);
-    write_byte(TE_SPRITE);
-    write_coord_f(center[0]);write_coord_f(center[1]);write_coord_f(center[2]+8.0);
-    write_short(g_pingSprite);write_byte(9);write_byte(255);
-    message_end();
+    // SPR tek seferlik efekt oldugu icin 2 saniye boyunca yeniden goster.
+    remove_task(id+TASK_PING_SPRITE);
+    g_pingSpriteOrigin[id][0]=center[0];
+    g_pingSpriteOrigin[id][1]=center[1];
+    g_pingSpriteOrigin[id][2]=center[2]+8.0;
+    g_pingSpriteTicks[id]=0;
+    PingSpriteThink(id+TASK_PING_SPRITE);
+    set_task(0.20,"PingSpriteThink",id+TASK_PING_SPRITE,_,_,"b");
     LaserWallSendBeam(center,top,35,255,95,10,35);
     for(new ring=0;ring<2;ring++) {
         new Float:radius=ring?22.0:14.0;
@@ -1609,6 +1614,23 @@ stock CTPlacePing(id)
     }
     emit_sound(id,CHAN_ITEM,"buttons/blip1.wav",VOL_NORM,ATTN_NORM,0,PITCH_NORM);
     client_print_color(0,id,"^1[^3FeliciaClan^1] ^3%n ^1konuma ping gönderdi.",id);
+}
+public PingSpriteThink(taskid)
+{
+    new id=taskid-TASK_PING_SPRITE;
+    if(id<1 || id>MaxClients || !is_user_connected(id)) {remove_task(taskid);return;}
+    if(g_pingSpriteTicks[id]>=10) {remove_task(taskid);return;}
+    message_begin(MSG_BROADCAST,SVC_TEMPENTITY);
+    write_byte(TE_SPRITE);
+    write_coord_f(g_pingSpriteOrigin[id][0]);
+    write_coord_f(g_pingSpriteOrigin[id][1]);
+    write_coord_f(g_pingSpriteOrigin[id][2]);
+    write_short(g_pingSprite);
+    write_byte(14);
+    write_byte(255);
+    message_end();
+    g_pingSpriteTicks[id]++;
+    if(g_pingSpriteTicks[id]>=10) remove_task(taskid);
 }
 public CmdPing(id) {CTPlacePing(id);return PLUGIN_HANDLED;}
 public CmdPingRelease(id) {return PLUGIN_HANDLED;}
@@ -10346,7 +10368,10 @@ public BridgeSpawnMenu(task) {
 }
 
 public BridgeRoundEnd() {
-    g_bridgeRoundClosed=true;BridgeCloseMenus();BridgeReset(CT_STOP_ROUND,false);
+    g_bridgeRoundClosed=true;
+    LaserWallReset();
+    for(new id=1;id<=MaxClients;id++) remove_task(id+TASK_PING_SPRITE);
+    BridgeCloseMenus();BridgeReset(CT_STOP_ROUND,false);
 }
 
 public ayarsifirla() {BridgeReset(CT_STOP_MENU,true);}
