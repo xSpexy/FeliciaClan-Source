@@ -642,7 +642,7 @@ new g_iDonateMaxAmount[DONATE_CURRENCY_COUNT];
 new g_szDonateSpriteName[DONATE_CURRENCY_COUNT][3][96];
 new g_szDonateSoundName[DONATE_CURRENCY_COUNT][3][96];
 new g_szDonateWeaponName[DONATE_CURRENCY_COUNT][3][32];
-new g_szDonateWeaponFrameName[DONATE_CURRENCY_COUNT][3][DONATE_SPRITE_FRAME_COUNT][32];
+new g_szDonateWeaponFrameName[DONATE_CURRENCY_COUNT][3][DONATE_SPRITE_FRAME_COUNT * 32];
 new bool:g_bDonateSpriteReady[DONATE_CURRENCY_COUNT][3];
 new bool:g_bDonateSpriteAnimated[DONATE_CURRENCY_COUNT][3];
 new bool:g_bDonateSoundReady[DONATE_CURRENCY_COUNT][3];
@@ -2085,8 +2085,8 @@ DonatePrecacheMedia()
                 formatex(framePath, charsmax(framePath), "sprites/%s.spr", frameSpriteName);
                 formatex(frameWeaponName, charsmax(frameWeaponName), "weapon_fcdonate_%s%d_f%d",
                     currency == DONATE_CURRENCY_COIN ? "coin" : "tl", tier + 1, frame);
-                copy(g_szDonateWeaponFrameName[currency][tier][frame],
-                    charsmax(g_szDonateWeaponFrameName[][][][]), frameWeaponName);
+                copy(g_szDonateWeaponFrameName[currency][tier][frame * 32],
+                    31, frameWeaponName);
 
                 if(!file_exists(framePath)
                     || !DonateWriteWeaponDefinition(frameWeaponName, frameSpriteName))
@@ -2194,7 +2194,7 @@ DonateSendSprite(id)
     {
         frame = g_iDonateSpriteFrame[id];
         copy(weaponName, charsmax(weaponName),
-            g_szDonateWeaponFrameName[currency][tier][frame]);
+            g_szDonateWeaponFrameName[currency][tier][frame * 32]);
         g_iDonateSpriteFrame[id] = (frame + 1) % DONATE_SPRITE_FRAME_COUNT;
     }
     else
