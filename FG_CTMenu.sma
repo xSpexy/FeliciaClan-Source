@@ -707,7 +707,8 @@ new g_beam, g_lineBeam, g_vault;
 #define TASK_LASER_WALL 741320
 #define LASER_WALL_HALF_WIDTH 220.0
 #define LASER_WALL_TOUCH_DISTANCE 24.0
-new bool:g_wallActive[MAXP+1], bool:g_wallUsed[MAXP+1];
+new bool:g_wallActive[MAXP+1];
+new g_wallUsageCount,g_wallUsageAuth[MAXP+1][40];
 new bool:g_wallInside[MAXP+1][MAXP+1];
 new g_wallOwnerUID[MAXP+1];
 new Float:g_wallStart[MAXP+1][3], Float:g_wallEnd[MAXP+1][3];
@@ -1487,13 +1488,14 @@ stock LaserWallDraw(owner)
 stock LaserWallRemove(owner)
 {
     if(owner<1 || owner>MaxClients) return;
-    g_wallActive[owner]=false;g_wallUsed[owner]=false;g_wallOwnerUID[owner]=0;g_wallNextDraw[owner]=0.0;
+    g_wallActive[owner]=false;g_wallOwnerUID[owner]=0;g_wallNextDraw[owner]=0.0;
     for(new id=1;id<=MaxClients;id++) g_wallInside[owner][id]=false;
 }
 stock LaserWallReset()
 {
+    g_wallUsageCount=0;
     for(new owner=1;owner<=MaxClients;owner++) {
-        g_wallActive[owner]=false;g_wallUsed[owner]=false;g_wallOwnerUID[owner]=0;g_wallNextDraw[owner]=0.0;
+        g_wallActive[owner]=false;g_wallOwnerUID[owner]=0;g_wallNextDraw[owner]=0.0;
         for(new id=1;id<=MaxClients;id++) g_wallInside[owner][id]=false;
     }
 }
@@ -1501,7 +1503,22 @@ stock CreateLaserWall(id)
 {
     if(!AliveCT(id)) {Chat(id,"Lazer duvarını yalnızca yaşayan gardiyanlar kurabilir.");return;}
     if(g_bridgeRoundClosed || g_game || g_rocketActive) {Chat(id,"Aktif oyun veya round geçişinde lazer duvarı kuramazsın.");return;}
-    if(g_wallUsed[id]) {Chat(id,"Bu tur lazer duvarı kurma hakkını zaten kullandın.");return;}
+    new authid[40];
+    get_user_authid(id,authid,charsmax(authid));
+    if(equal(authid,"STEAM_ID_PENDING") || !authid[0])
+        formatex(authid,charsmax(authid),"USERID_%d",get_user_userid(id));
+    for(new used=0;used<g_wallUsageCount;used++)
+        if(equal(g_wallUsageAuth[used],authid))
+        {
+            Chat(id,"Bu tur lazer duvarı kurma hakkını zaten kullandın.");
+            return;
+        }
+    if(g_wallUsageCount>=MaxClients)
+    {
+        Chat(id,"Bu tur lazer duvarı kullanım sınırına ulaşıldı.");
+        return;
+    }
+    copy(g_wallUsageAuth[g_wallUsageCount++],charsmax(g_wallUsageAuth[]),authid);
     new aim[3];get_user_origin(id,aim,3);
     new Float:angles[3];get_entvar(id,var_v_angle,angles);
     new Float:yaw=angles[1]+90.0;
@@ -1512,7 +1529,7 @@ stock CreateLaserWall(id)
     g_wallEnd[id][1]=float(aim[1])+ry*LASER_WALL_HALF_WIDTH;
     g_wallMinZ[id]=float(aim[2])-48.0;g_wallMaxZ[id]=float(aim[2])+112.0;
     g_wallStart[id][2]=g_wallMinZ[id];g_wallEnd[id][2]=g_wallMinZ[id];
-    g_wallActive[id]=true;g_wallUsed[id]=true;g_wallOwnerUID[id]=get_user_userid(id);
+    g_wallActive[id]=true;g_wallOwnerUID[id]=get_user_userid(id);
     g_wallNextDraw[id]=get_gametime()+15.0;
     for(new target=1;target<=MaxClients;target++) g_wallInside[id][target]=false;
     LaserWallDraw(id);
@@ -9513,7 +9530,7 @@ public plugin_init() {
     RegisterHookChain(RG_CBasePlayer_DropPlayerItem,"OnDrop",false);
     RegisterHookChain(RG_CBasePlayerWeapon_DefaultDeploy,"OnFistsDeploy",true);
     register_forward(FM_CmdStart,"OnCmdStart");
-    set_task(0.1,"LaserWallThink",TASK_LASER_WALL,"",0,"b");
+    set_task(0.05,"LaserWallThink",TASK_LASER_WALL,"",0,"b");
     register_touch("player","player","OnTouchPlayers");
     register_touch("grenade","player","OnDodgeballGrenadeTouch");
     register_touch(LOOT_CLASS,"player","OnLoot");
