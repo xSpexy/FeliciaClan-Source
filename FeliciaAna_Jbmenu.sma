@@ -2828,7 +2828,8 @@ ShowFPSOptionsMenu(id)
         formatex(label, charsmax(label), "\wBıçak Sesleri \d[ \rKapalı \d]");
     FC_MenuAddItem(menu, label, "3");
 
-    if(g_bChatMessagesEnabled[id])
+    // Görünür sohbet durumunu menüde ters eşleşmeden koru.
+    if(!g_bChatMessagesEnabled[id])
         formatex(label, charsmax(label), "\wSohbet Mesajları \d[ \yAçık \d]");
     else
         formatex(label, charsmax(label), "\wSohbet Mesajları \d[ \rKapalı \d]");
@@ -2937,7 +2938,7 @@ public H_FPSOptions(id, menu, item)
         if(g_iUID[id]>0 && g_bProfileLoaded[id])
             UIDSetInt(g_iUID[id],"chat_messages_enabled",g_bChatMessagesEnabled[id]);
         client_cmd(id,"hud_saytext %d",g_bChatMessagesEnabled[id] ? 1 : 0);
-        if(g_bChatMessagesEnabled[id])
+        if(!g_bChatMessagesEnabled[id])
             Chat(id,"Sohbet mesajları açıldı.");
         else
             client_print(id,print_center,"Sohbet mesajları kapatıldı.");
