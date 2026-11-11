@@ -2148,9 +2148,10 @@ bool:DonateWriteWeaponDefinition(const weaponName[], const spriteName[])
     if(!file) return false;
 
     fputs(file, "2^n");
-    // SPR'yi ekranin sag ust bolgesine yerlestir.
-    fprintf(file, "crosshair 320 %s 215 -135 128 80^n", spriteName);
-    fprintf(file, "crosshair 640 %s 430 -270 128 80^n", spriteName);
+    // 128x80 SPR: her iki çözünürlükte de ekranın sağ üstünde ve tamamen görünür.
+    // Offset değerleri ekran merkezine göredir; 640 profili daha geniş ekran için ayrı hesaplanır.
+    fprintf(file, "crosshair 320 %s 80 -60 128 80^n", spriteName);
+    fprintf(file, "crosshair 640 %s 240 -180 128 80^n", spriteName);
     fclose(file);
 
     precache_generic(path);
