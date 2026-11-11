@@ -703,9 +703,9 @@ new g_warden;
 new bool:g_hard;
 new g_fwPrepare, g_fwStarted, g_fwFinished, g_menuCallback;
 new g_fwRocketPrepare,g_fwRocketFinished;
-new g_beam, g_lineBeam, g_vault;
+new g_beam, g_lineBeam, g_vault, g_pingSprite;
 #define TASK_LASER_WALL 741320
-#define LASER_WALL_HALF_WIDTH 175.0
+#define LASER_WALL_HALF_WIDTH 125.0
 #define LASER_WALL_TOUCH_DISTANCE 24.0
 #define PING_COOLDOWN 3.0
 new bool:g_wallActive[MAXP+1];
@@ -1475,17 +1475,18 @@ stock LaserWallDraw(owner)
     new Float:a[3],Float:b[3];
     new Float:dx=g_wallEnd[owner][0]-g_wallStart[owner][0];
     new Float:dy=g_wallEnd[owner][1]-g_wallStart[owner][1];
-    for(new i=0;i<=14;i++) {
-        new Float:f=float(i)/14.0;
-        a[0]=g_wallStart[owner][0]+dx*f;a[1]=g_wallStart[owner][1]+dy*f;a[2]=g_wallMinZ[owner]+5.0;
-        b[0]=a[0];b[1]=a[1];b[2]=g_wallMaxZ[owner]-5.0;
-        LaserWallSendBeam(a,b,255,35,45,16,220);
+    // Sik, kareye yakin izgara: 11 dikey + 7 yatay cizgi.
+    for(new i=0;i<=10;i++) {
+        new Float:f=float(i)/10.0;
+        a[0]=g_wallStart[owner][0]+dx*f;a[1]=g_wallStart[owner][1]+dy*f;a[2]=g_wallMinZ[owner]+3.0;
+        b[0]=a[0];b[1]=a[1];b[2]=g_wallMaxZ[owner]-3.0;
+        LaserWallSendBeam(a,b,70,255,125,8,220);
     }
-    for(new row=0;row<=4;row++) {
-        new Float:z=g_wallMinZ[owner]+(g_wallMaxZ[owner]-g_wallMinZ[owner])*float(row)/4.0;
+    for(new row=0;row<=6;row++) {
+        new Float:z=g_wallMinZ[owner]+(g_wallMaxZ[owner]-g_wallMinZ[owner])*float(row)/6.0;
         a[0]=g_wallStart[owner][0];a[1]=g_wallStart[owner][1];a[2]=z;
         b[0]=g_wallEnd[owner][0];b[1]=g_wallEnd[owner][1];b[2]=z;
-        LaserWallSendBeam(a,b,255,15,25,14,220);
+        LaserWallSendBeam(a,b,45,235,105,8,220);
     }
 }
 stock LaserWallRemove(owner)
@@ -1530,7 +1531,7 @@ stock CreateLaserWall(id)
     g_wallStart[id][1]=float(aim[1])-ry*LASER_WALL_HALF_WIDTH;
     g_wallEnd[id][0]=float(aim[0])+rx*LASER_WALL_HALF_WIDTH;
     g_wallEnd[id][1]=float(aim[1])+ry*LASER_WALL_HALF_WIDTH;
-    g_wallMinZ[id]=float(aim[2])-36.0;g_wallMaxZ[id]=float(aim[2])+92.0;
+    g_wallMinZ[id]=float(aim[2])-24.0;g_wallMaxZ[id]=float(aim[2])+70.0;
     g_wallStart[id][2]=g_wallMinZ[id];g_wallEnd[id][2]=g_wallMinZ[id];
     g_wallActive[id]=true;g_wallOwnerUID[id]=get_user_userid(id);
     g_wallNextDraw[id]=get_gametime()+15.0;
@@ -1586,18 +1587,24 @@ stock CTPlacePing(id)
     new aim[3];get_user_origin(id,aim,3);
     new Float:center[3],Float:top[3],Float:a[3],Float:b[3];
     center[0]=float(aim[0]);center[1]=float(aim[1]);center[2]=float(aim[2])+5.0;
-    top[0]=center[0];top[1]=center[1];top[2]=center[2]+78.0;
-    LaserWallSendBeam(center,top,55,235,160,18,35);
+    top[0]=center[0];top[1]=center[1];top[2]=center[2]+54.0;
+    // Glow sprite ve yesil dis halka.
+    message_begin(MSG_BROADCAST,SVC_TEMPENTITY);
+    write_byte(TE_SPRITE);
+    write_coord_f(center[0]);write_coord_f(center[1]);write_coord_f(center[2]+8.0);
+    write_short(g_pingSprite);write_byte(9);write_byte(255);
+    message_end();
+    LaserWallSendBeam(center,top,35,255,95,10,35);
     for(new ring=0;ring<2;ring++) {
-        new Float:radius=ring?30.0:20.0;
-        for(new i=0;i<12;i++) {
-            new Float:ang=float(i)*30.0;
-            new Float:nextAng=float(i+1)*30.0;
+        new Float:radius=ring?22.0:14.0;
+        for(new i=0;i<16;i++) {
+            new Float:ang=float(i)*22.5;
+            new Float:nextAng=float(i+1)*22.5;
             a[0]=center[0]+floatcos(ang,degrees)*radius;
             a[1]=center[1]+floatsin(ang,degrees)*radius;a[2]=center[2]+float(ring)*2.0;
             b[0]=center[0]+floatcos(nextAng,degrees)*radius;
             b[1]=center[1]+floatsin(nextAng,degrees)*radius;b[2]=a[2];
-            LaserWallSendBeam(a,b,ring?35:90,ring?190:255,ring?255:210,ring?12:18,35);
+            LaserWallSendBeam(a,b,ring?35:75,ring?205:255,ring?75:125,ring?8:10,35);
         }
     }
     emit_sound(id,CHAN_ITEM,"buttons/blip1.wav",VOL_NORM,ATTN_NORM,0,PITCH_NORM);
@@ -9513,6 +9520,7 @@ public plugin_precache() {
     precache_model(g_lootModel);
     g_beam=precache_model(file_exists(BEAM_SPRITE) ? BEAM_SPRITE : "sprites/laserbeam.spr");
     g_lineBeam=precache_model("sprites/laserbeam.spr");
+    g_pingSprite=precache_model("sprites/ledglow.spr");
     precache_sound("buttons/blip1.wav");
 }
 
