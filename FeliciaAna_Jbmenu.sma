@@ -10315,7 +10315,9 @@ LoadDonateConfig()
     }
     fclose(fp);
 
-    g_flDonateDisplayTime = floatclamp(DonateCfgFloat("DISPLAY_TIME", 5.0), 1.0, 15.0);
+    g_flDonateDisplayTime = DonateCfgFloat("DISPLAY_TIME", 5.0);
+    if(g_flDonateDisplayTime < 1.0) g_flDonateDisplayTime = 1.0;
+    if(g_flDonateDisplayTime > 15.0) g_flDonateDisplayTime = 15.0;
 }
 
 DonateCfgStr(const key[], out[], len, const def[])
