@@ -2325,6 +2325,63 @@ public EventDonateSetFOV(id)
 }
 
 
+DonateStartHud(target, const donorName[], const amountText[], const message[])
+{
+    if(target < 1 || target > MaxClients || !is_user_connected(target))
+        return;
+
+    copy(g_szDonateHudDonor[target], charsmax(g_szDonateHudDonor[]), donorName);
+    copy(g_szDonateHudAmount[target], charsmax(g_szDonateHudAmount[]), amountText);
+    copy(g_szDonateHudMessage[target], charsmax(g_szDonateHudMessage[]), message);
+
+    remove_task(target + TASK_DONATE_HUD_REFRESH);
+    remove_task(target + TASK_DONATE_HUD_CLEAR);
+    TaskDonateHudRefresh(target + TASK_DONATE_HUD_REFRESH);
+    set_task(0.40, "TaskDonateHudRefresh", target + TASK_DONATE_HUD_REFRESH, "", 0, "b");
+    set_task(g_flDonateDisplayTime, "TaskDonateHudClear", target + TASK_DONATE_HUD_CLEAR);
+}
+
+public TaskDonateHudRefresh(taskid)
+{
+    new target = taskid - TASK_DONATE_HUD_REFRESH;
+    if(target < 1 || target > MaxClients || !is_user_connected(target))
+    {
+        remove_task(taskid);
+        return;
+    }
+
+    // Isim ve miktar sabit sprite alaninin altinda tutulur.
+    set_hudmessage(255, 255, 255, 0.73, 0.430, 0, 0.0, 0.65, 0.0, 0.05, -1);
+    ShowSyncHudMsg(target, g_iDonateHudSync, "%s", g_szDonateHudDonor[target]);
+
+    set_hudmessage(255, 55, 55, 0.73, 0.470, 0, 0.0, 0.65, 0.0, 0.05, -1);
+    ShowSyncHudMsg(target, g_iDonateAmountHudSync, "%s", g_szDonateHudAmount[target]);
+
+    // Mesaj kasa bildirimi gibi crosshair'in biraz ustunde kalir.
+    set_hudmessage(210, 210, 255, -1.0, 0.395, 0, 0.0, 0.65, 0.0, 0.05, 1);
+    ShowSyncHudMsg(target, g_iDonateMessageHudSync, "%s", g_szDonateHudMessage[target]);
+}
+
+public TaskDonateHudClear(taskid)
+{
+    new target = taskid - TASK_DONATE_HUD_CLEAR;
+    if(target < 1 || target > MaxClients)
+        return;
+
+    remove_task(target + TASK_DONATE_HUD_REFRESH);
+    if(is_user_connected(target))
+    {
+        ClearSyncHud(target, g_iDonateHudSync);
+        ClearSyncHud(target, g_iDonateAmountHudSync);
+        ClearSyncHud(target, g_iDonateMessageHudSync);
+    }
+
+    g_szDonateHudDonor[target][0] = 0;
+    g_szDonateHudAmount[target][0] = 0;
+    g_szDonateHudMessage[target][0] = 0;
+}
+
+
 DonateHistorySave(id, amount, currency, const donorName[], const message[])
 {
     if(g_iVault == INVALID_HANDLE) return;
