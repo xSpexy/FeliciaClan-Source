@@ -2182,7 +2182,7 @@ DonateSendSprite(id)
     write_coord(floatround(drawPos[1]));
     write_coord(floatround(drawPos[2]));
     write_short(modelIndex);
-    write_byte(10);   // 1.0 olcek; onceki 0.1 olcek cok kucuktu
+    write_byte(15);   // 1.5 olcek; daha belirgin ve buyuk goruntu
     write_byte(255);  // tam parlaklik
     message_end();
 }
@@ -2255,10 +2255,10 @@ public TaskDonateHudRefresh(taskid)
     }
 
     // Isim ve miktar sprite alaninin altina tasindi.
-    set_hudmessage(255, 255, 255, 0.73, 0.315, 0, 0.0, 0.65, 0.0, 0.05, -1);
+    set_hudmessage(255, 255, 255, 0.73, 0.355, 0, 0.0, 0.65, 0.0, 0.05, -1);
     ShowSyncHudMsg(target, g_iDonateHudSync, "%s", g_szDonateHudDonor[target]);
 
-    set_hudmessage(255, 55, 55, 0.73, 0.350, 0, 0.0, 0.65, 0.0, 0.05, -1);
+    set_hudmessage(255, 55, 55, 0.73, 0.390, 0, 0.0, 0.65, 0.0, 0.05, -1);
     ShowSyncHudMsg(target, g_iDonateAmountHudSync, "%s", g_szDonateHudAmount[target]);
 
     set_hudmessage(210, 210, 255, -1.0, 0.395, 0, 0.0, 0.65, 0.0, 0.05, 1);
@@ -2714,7 +2714,7 @@ ShowDonateHistoryMenu(id)
     new line[160], info[16], donor[40], amountText[24], currencyText[12], serial;
 
     if(!count)
-        FC_MenuAddItem(menu, "\wHenüz bağış kaydı yok", "0");
+        FC_MenuAddItem(menu, "\dHenüz bağış kaydı yok", "0");
 
     for(new i; i < count; i++)
     {
@@ -2725,13 +2725,13 @@ ShowDonateHistoryMenu(id)
         new currency = clamp(str_to_num(currencyText), 0, DONATE_CURRENCY_COUNT - 1);
         new currencyName[12];
         DonateCurrencyName(currency, currencyName, charsmax(currencyName));
-        formatex(line, charsmax(line), "\w%s \w- %s %s", donor, amountText, currencyName);
+        formatex(line, charsmax(line), "\w%s \y- %s %s", donor, amountText, currencyName);
         num_to_str(serial, info, charsmax(info));
         FC_MenuAddItem(menu, line, info);
     }
 
     if(g_iDonateHistorySerial > 0)
-        FC_MenuAddItem(menu, "\wBağış Geçmişini Temizle", "-1");
+        FC_MenuAddItem(menu, "\rBağış Geçmişini Temizle", "-1");
 
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
@@ -2771,7 +2771,7 @@ ShowDonateHistoryClearConfirm(id)
     if(!HasRole(id, ROLE_MANAGER)) return;
 
     new menu = FC_MenuCreate("\wBağış geçmişinin tamamı silinsin mi?", "H_DonateHistoryClearConfirm");
-    FC_MenuAddItem(menu, "\wEvet, geçmişi temizle", "1");
+    FC_MenuAddItem(menu, "\rEvet, geçmişi temizle", "1");
     FC_MenuAddItem(menu, "\wHayır, geri dön", "2");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
@@ -4030,13 +4030,13 @@ RaffleShowManager(id)
             totalCoin += g_iRaffleParticipantCount[i] * g_iRaffleFeeAmount[i];
     }
     new title[256];
-    formatex(title, charsmax(title), "\wYonetici Cekilis Paneli^n\wToplam: \w%d \w| Aktif: \w%d \w| Tamamlanan: \w%d^n\wToplanan: \w%d TL \w/ \w%d Coin",
+    formatex(title, charsmax(title), "\wYonetici Cekilis Paneli^n\dToplam: \w%d \d| Aktif: \y%d \d| Tamamlanan: \y%d^n\dToplanan: \w%d TL \d/ \y%d Coin",
         g_iRaffleCount, active, completed, totalTL, totalCoin);
     new menu = FC_MenuCreate(title, "H_RaffleManager");
-    FC_MenuAddItem(menu, "\wCekilis Olustur", "1");
+    FC_MenuAddItem(menu, "\yCekilis Olustur", "1");
     FC_MenuAddItem(menu, "\wCekilislerim", "2");
     FC_MenuAddItem(menu, "\wKatilim Listeleri", "3");
-    FC_MenuAddItem(menu, "\wEski Cekilisleri Temizle", "4");
+    FC_MenuAddItem(menu, "\rEski Cekilisleri Temizle", "4");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
 }
@@ -4071,8 +4071,8 @@ RaffleShowClearOldConfirm(id)
 {
     if(!RaffleRequireManager(id)) return;
 
-    new menu = FC_MenuCreate("\wTamamlanmis eski cekilisler silinsin mi?^n\wAktif cekilisler ve teslim edilmemis oduller korunur.", "H_RaffleClearOldConfirm");
-    FC_MenuAddItem(menu, "\wEvet, eski cekilisleri temizle", "1");
+    new menu = FC_MenuCreate("\wTamamlanmis eski cekilisler silinsin mi?^n\dAktif cekilisler ve teslim edilmemis oduller korunur.", "H_RaffleClearOldConfirm");
+    FC_MenuAddItem(menu, "\rEvet, eski cekilisleri temizle", "1");
     FC_MenuAddItem(menu, "\wHayir, geri don", "2");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
