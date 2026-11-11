@@ -2814,9 +2814,9 @@ ShowDonateHistoryClearConfirm(id)
 {
     if(!HasRole(id, ROLE_MANAGER)) return;
 
-    new menu = FC_MenuCreate("\\wBağış geçmişinin tamamı silinsin mi?", "H_DonateHistoryClearConfirm");
-    FC_MenuAddItem(menu, "\\rEvet, geçmişi temizle", "1");
-    FC_MenuAddItem(menu, "\\wHayır, geri dön", "2");
+    new menu = FC_MenuCreate("\wBağış geçmişinin tamamı silinsin mi?", "H_DonateHistoryClearConfirm");
+    FC_MenuAddItem(menu, "\rEvet, geçmişi temizle", "1");
+    FC_MenuAddItem(menu, "\wHayır, geri dön", "2");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
 }
