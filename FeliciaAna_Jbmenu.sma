@@ -2809,10 +2809,11 @@ ShowFPSOptionsMenu(id)
     new menu = FC_MenuCreate("\wFPS Seçenekleri", "H_FPSOptions");
     new label[128], hudMode[24];
 
+    // Durum etiketleri mevcut ayari gosterir: acik/gorunur sari, kapali/gorunmez kirmizi.
     if(g_bDonateMediaEnabled[id])
-        formatex(label, charsmax(label), "\wBağış Medyası \d[ \yGöster \d]");
+        formatex(label, charsmax(label), "\wBağış Medyası \d[ \yAçık \d]");
     else
-        formatex(label, charsmax(label), "\wBağış Medyası \d[ \rGizle \d]");
+        formatex(label, charsmax(label), "\wBağış Medyası \d[ \rKapalı \d]");
     FC_MenuAddItem(menu, label, "1");
 
     if(g_bSoundMenuEnabled[id])
@@ -2833,40 +2834,41 @@ ShowFPSOptionsMenu(id)
         formatex(label, charsmax(label), "\wSohbet Mesajları \d[ \rKapalı \d]");
     FC_MenuAddItem(menu, label, "4");
 
-    if(g_bHidePets[id])
-        formatex(label, charsmax(label), "\wPet Sistemi \d[ \yGöster \d]");
+    // g_bHidePets true ise petler gizlidir; durum etiketi ters mantikla yazilmalidir.
+    if(!g_bHidePets[id])
+        formatex(label, charsmax(label), "\wPet Sistemi \d[ \yGözükür \d]");
     else
-        formatex(label, charsmax(label), "\wPet Sistemi \d[ \yGizle \d]");
+        formatex(label, charsmax(label), "\wPet Sistemi \d[ \rGözükmüyor \d]");
     FC_MenuAddItem(menu, label, "5");
 
     if(g_bKnifeSkinsVisible[id])
-        formatex(label, charsmax(label), "\wBıçak Skinleri \d[ \yGöster \d]");
+        formatex(label, charsmax(label), "\wBıçak Skinleri \d[ \yGözükür \d]");
     else
-        formatex(label, charsmax(label), "\wBıçak Skinleri \d[ \rGizle \d]");
+        formatex(label, charsmax(label), "\wBıçak Skinleri \d[ \rGözükmüyor \d]");
     FC_MenuAddItem(menu, label, "6");
 
     if(g_bPlayerModelsVisible[id])
-        formatex(label, charsmax(label), "\wOyuncu Modelleri \d[ \yGöster \d]");
+        formatex(label, charsmax(label), "\wOyuncu Modelleri \d[ \yGözükür \d]");
     else
-        formatex(label, charsmax(label), "\wOyuncu Modelleri \d[ \rGizle \d]");
+        formatex(label, charsmax(label), "\wOyuncu Modelleri \d[ \rGözükmüyor \d]");
     FC_MenuAddItem(menu, label, "7");
 
     if(g_bPrisonerPlayersVisible[id])
-        formatex(label, charsmax(label), "\wMahkûm Oyuncuları \d[ \yGöster \d]");
+        formatex(label, charsmax(label), "\wMahkûm Oyuncuları \d[ \yGözükür \d]");
     else
-        formatex(label, charsmax(label), "\wMahkûm Oyuncuları \d[ \rGizle \d]");
+        formatex(label, charsmax(label), "\wMahkûm Oyuncuları \d[ \rGözükmüyor \d]");
     FC_MenuAddItem(menu, label, "8");
 
     if(g_bTrailsVisible[id])
-        formatex(label, charsmax(label), "\wTrail Efektleri \d[ \yGöster \d]");
+        formatex(label, charsmax(label), "\wTrail Efektleri \d[ \yGözükür \d]");
     else
-        formatex(label, charsmax(label), "\wTrail Efektleri \d[ \rGizle \d]");
+        formatex(label, charsmax(label), "\wTrail Efektleri \d[ \rGözükmüyor \d]");
     FC_MenuAddItem(menu, label, "9");
 
     if(g_bDeathEffectsVisible[id])
-        formatex(label, charsmax(label), "\wÖlüm Efektleri \d[ \yGöster \d]");
+        formatex(label, charsmax(label), "\wÖlüm Efektleri \d[ \yGözükür \d]");
     else
-        formatex(label, charsmax(label), "\wÖlüm Efektleri \d[ \rGizle \d]");
+        formatex(label, charsmax(label), "\wÖlüm Efektleri \d[ \rGözükmüyor \d]");
     FC_MenuAddItem(menu, label, "10");
 
     // HUD secenegi bilerek en alta.
@@ -2877,7 +2879,10 @@ ShowFPSOptionsMenu(id)
         case HUDMODE_OFF: copy(hudMode, charsmax(hudMode), "Kapalı");
         default: copy(hudMode, charsmax(hudMode), "Detaylı");
     }
-    formatex(label, charsmax(label), "\wBilgi HUD'u \d[ \y%s \d]", hudMode);
+    if(g_iHudMode[id] == HUDMODE_OFF)
+        formatex(label, charsmax(label), "\wBilgi HUD'u \d[ \rKapalı \d]");
+    else
+        formatex(label, charsmax(label), "\wBilgi HUD'u \d[ \yAçık: %s \d]", hudMode);
     FC_MenuAddItem(menu, label, "11");
 
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
