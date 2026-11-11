@@ -1613,6 +1613,10 @@ stock CreatePingSprite(const Float:origin[3])
     if(!ent) return 0;
 
     DispatchKeyValue(ent,"model","sprites/ledglow.spr");
+    DispatchKeyValue(ent,"spawnflags","1");
+    DispatchKeyValue(ent,"scale","0.6");
+    DispatchKeyValue(ent,"rendermode","5");
+    DispatchKeyValue(ent,"renderamt","255");
     DispatchSpawn(ent);
 
     set_entvar(ent,var_classname,"felicia_ping_sprite");
@@ -1620,15 +1624,14 @@ stock CreatePingSprite(const Float:origin[3])
     set_entvar(ent,var_movetype,MOVETYPE_NONE);
     set_entvar(ent,var_solid,SOLID_NOT);
     set_entvar(ent,var_modelindex,g_pingSprite);
-    set_entvar(ent,var_scale,0.18);
-
-    // Glow shell ile duvar arkasi gorunurluk denemesi.
-    set_entvar(ent,var_renderfx,kRenderFxGlowShell);
+    set_entvar(ent,var_frame,0.0);
+    set_entvar(ent,var_framerate,10.0);
+    set_entvar(ent,var_scale,0.6);
+    set_entvar(ent,var_renderfx,kRenderFxNone);
     set_entvar(ent,var_rendermode,kRenderTransAdd);
     set_entvar(ent,var_renderamt,255.0);
-    new Float:glowColor[3]={35.0,255.0,95.0};
-    set_entvar(ent,var_rendercolor,glowColor);
 
+    // Once gorunurlugu geri getir; duvar arkasi glow sonraki testte ayri ele alinacak.
     set_task(2.0,"RemovePingSprite",ent+TASK_PING_SPRITE);
     return ent;
 }
