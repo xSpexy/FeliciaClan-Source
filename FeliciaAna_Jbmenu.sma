@@ -2158,8 +2158,9 @@ bool:DonateReadSpriteDimensions(const spritePath[], &width, &height)
     if(valid)
     {
         fseek(file, 20, SEEK_SET);
-        if(fread(file, width, BLOCK_INT) != 1
-            || fread(file, height, BLOCK_INT) != 1)
+        // Width and height are 32-bit integers; BLOCK_INT reads 4 bytes.
+        if(fread(file, width, BLOCK_INT) != 4
+            || fread(file, height, BLOCK_INT) != 4)
             valid = false;
     }
 
@@ -2390,8 +2391,10 @@ DonateStartHud(target, const donorName[], const amountText[], const message[])
 
     remove_task(target + TASK_DONATE_HUD_REFRESH);
     remove_task(target + TASK_DONATE_HUD_CLEAR);
+
+    // Draw each HUD line once. The engine keeps it visible for the full
+    // donation display time, so periodic redraws cannot make it blink.
     TaskDonateHudRefresh(target + TASK_DONATE_HUD_REFRESH);
-    set_task(0.40, "TaskDonateHudRefresh", target + TASK_DONATE_HUD_REFRESH, "", 0, "b");
     set_task(g_flDonateDisplayTime, "TaskDonateHudClear", target + TASK_DONATE_HUD_CLEAR);
 }
 
@@ -2405,14 +2408,14 @@ public TaskDonateHudRefresh(taskid)
     }
 
     // Isim ve miktar sabit sprite alaninin altinda tutulur.
-    set_hudmessage(255, 255, 255, 0.73, 0.430, 0, 0.0, 0.65, 0.0, 0.05, -1);
+    set_hudmessage(255, 255, 255, 0.73, 0.430, 0, 0.0, g_flDonateDisplayTime, 0.0, 0.0, -1);
     ShowSyncHudMsg(target, g_iDonateHudSync, "%s", g_szDonateHudDonor[target]);
 
-    set_hudmessage(255, 55, 55, 0.73, 0.470, 0, 0.0, 0.65, 0.0, 0.05, -1);
+    set_hudmessage(255, 55, 55, 0.73, 0.470, 0, 0.0, g_flDonateDisplayTime, 0.0, 0.0, -1);
     ShowSyncHudMsg(target, g_iDonateAmountHudSync, "%s", g_szDonateHudAmount[target]);
 
-    // Mesaj kasa bildirimi gibi crosshair'in biraz ustunde kalir.
-    set_hudmessage(210, 210, 255, -1.0, 0.395, 0, 0.0, 0.65, 0.0, 0.05, 1);
+    // Message, donor name and amount now share the same fixed display duration.
+    set_hudmessage(210, 210, 255, -1.0, 0.395, 0, 0.0, g_flDonateDisplayTime, 0.0, 0.0, 1);
     ShowSyncHudMsg(target, g_iDonateMessageHudSync, "%s", g_szDonateHudMessage[target]);
 }
 
