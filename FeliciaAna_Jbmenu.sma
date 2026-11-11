@@ -647,6 +647,7 @@ new bool:g_bDonateSpriteReady[DONATE_CURRENCY_COUNT][3];
 new bool:g_bDonateSpriteAnimated[DONATE_CURRENCY_COUNT][3];
 new bool:g_bDonateSoundReady[DONATE_CURRENCY_COUNT][3];
 new g_iDonateSpriteFrame[33];
+new g_iDonateSpriteRefreshTick[33];
 
 new g_iPlayRewardMinutes[33];
 #define PLAY_REWARD_TASK 28000
@@ -2142,8 +2143,14 @@ DonateSendSprite(id)
     new frame = 0;
     if(g_bDonateSpriteAnimated[currency][tier])
     {
+        // Konum 0.05 sn aralikla guncellenir; animasyon karesi 0.10 sn'de degisir.
         frame = g_iDonateSpriteFrame[id];
-        g_iDonateSpriteFrame[id] = (frame + 1) % DONATE_SPRITE_FRAME_COUNT;
+        g_iDonateSpriteRefreshTick[id]++;
+        if(g_iDonateSpriteRefreshTick[id] >= 2)
+        {
+            g_iDonateSpriteRefreshTick[id] = 0;
+            g_iDonateSpriteFrame[id] = (frame + 1) % DONATE_SPRITE_FRAME_COUNT;
+        }
     }
 
     new modelIndex = g_iDonateSpriteModelIndex[currency][tier][frame];
@@ -2165,8 +2172,8 @@ DonateSendSprite(id)
 
     for(new axis = 0; axis < 3; axis++)
     {
-        drawPos[axis] = origin[axis] + vecForward[axis] * 64.0
-            + vecRight[axis] * 43.0 + vecUp[axis] * 32.0;
+        drawPos[axis] = origin[axis] + vecForward[axis] * 256.0
+            + vecRight[axis] * 172.0 + vecUp[axis] * 128.0;
     }
 
     message_begin(MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, _, id);
@@ -2197,13 +2204,14 @@ DonateShowSprite(id, currency, tier)
     g_iDonateSpriteCurrency[id] = currency;
     g_iDonateSpriteTier[id] = tier;
     g_iDonateSpriteFrame[id] = 0;
+    g_iDonateSpriteRefreshTick[id] = 0;
     g_bDonateSpriteActive[id] = true;
     remove_task(id + TASK_DONATE_SPRITE);
     remove_task(id + TASK_DONATE_REFRESH);
 
     DonateSendSprite(id);
     // TE_SPRITE tek atimlik oldugundan tum karelerde aralikli yeniden gonder.
-    set_task(0.10, "TaskDonateRefreshSprite", id + TASK_DONATE_REFRESH, "", 0, "b");
+    set_task(0.05, "TaskDonateRefreshSprite", id + TASK_DONATE_REFRESH, "", 0, "b");
     set_task(g_flDonateDisplayTime, "TaskDonateClearSprite", id + TASK_DONATE_SPRITE);
 }
 
@@ -2246,10 +2254,11 @@ public TaskDonateHudRefresh(taskid)
         return;
     }
 
-    set_hudmessage(255, 255, 255, 0.73, 0.165, 0, 0.0, 0.65, 0.0, 0.05, -1);
+    // Isim ve miktar sprite alaninin altina tasindi.
+    set_hudmessage(255, 255, 255, 0.73, 0.245, 0, 0.0, 0.65, 0.0, 0.05, -1);
     ShowSyncHudMsg(target, g_iDonateHudSync, "%s", g_szDonateHudDonor[target]);
 
-    set_hudmessage(255, 55, 55, 0.73, 0.200, 0, 0.0, 0.65, 0.0, 0.05, -1);
+    set_hudmessage(255, 55, 55, 0.73, 0.280, 0, 0.0, 0.65, 0.0, 0.05, -1);
     ShowSyncHudMsg(target, g_iDonateAmountHudSync, "%s", g_szDonateHudAmount[target]);
 
     set_hudmessage(210, 210, 255, -1.0, 0.395, 0, 0.0, 0.65, 0.0, 0.05, 1);
