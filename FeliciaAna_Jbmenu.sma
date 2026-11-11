@@ -588,7 +588,10 @@ new g_iTL[33];
 new g_iCoin[33];
 new bool:g_bDonateMediaEnabled[33];
 new bool:g_bSoundMenuEnabled[33],bool:g_bKnifeSoundsEnabled[33],bool:g_bSoundSentRound[33];
-new Array:g_aSoundMenuNames,g_aSoundMenuPaths,g_aSoundMenuPrices,g_aSoundMenuReady;
+new Array:g_aSoundMenuNames;
+new Array:g_aSoundMenuPaths;
+new Array:g_aSoundMenuPrices;
+new Array:g_aSoundMenuReady;
 new g_iSoundSpeakerSprite;
 new Float:g_flSoundSpeakerUntil[33];
 new const SOUND_MENU_INI[]="addons/amxmodx/configs/FeliciaClan/Ses_Menu.ini";
@@ -2873,7 +2876,7 @@ LoadSoundMenuConfig()
 
         new price=max(0,str_to_num(priceText));
         formatex(fullPath,charsmax(fullPath),"sound/%s",soundPath);
-        new bool:ready=file_exists(fullPath);
+        new ready=file_exists(fullPath) ? 1 : 0;
         if(ready) precache_sound(soundPath);
         else log_amx("[FeliciaClan] Ses dosyasi bulunamadi: %s",fullPath);
 
