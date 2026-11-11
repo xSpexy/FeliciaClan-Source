@@ -582,16 +582,16 @@ new g_CfgVal[MAX_CFG][MAX_CFG_VAL];
 // PLAYER DATA
 // ============================================================
 
-new g_iVault = INVALID_HANDLE;
+new Vault:g_iVault = Vault:INVALID_HANDLE;
 new g_iUID[33];
 new g_iTL[33];
 new g_iCoin[33];
 new bool:g_bDonateMediaEnabled[33];
 new bool:g_bSoundMenuEnabled[33],bool:g_bKnifeSoundsEnabled[33],bool:g_bSoundSentRound[33];
-new Array:g_aSoundMenuNames;
-new Array:g_aSoundMenuPaths;
-new Array:g_aSoundMenuPrices;
-new Array:g_aSoundMenuReady;
+new Array:g_aSoundMenuNames = Invalid_Array;
+new Array:g_aSoundMenuPaths = Invalid_Array;
+new Array:g_aSoundMenuPrices = Invalid_Array;
+new Array:g_aSoundMenuReady = Invalid_Array;
 new g_iSoundSpeakerSprite;
 new Float:g_flSoundSpeakerUntil[33];
 new const SOUND_MENU_INI[]="addons/amxmodx/configs/FeliciaClan/Ses_Menu.ini";
@@ -1113,7 +1113,7 @@ public plugin_init()
     set_task(1.0, "TaskHud", TASK_HUD, "", 0, "b");
 
     g_iVault = nvault_open(VAULT_NAME);
-    if(g_iVault == INVALID_HANDLE)
+    if(g_iVault == Vault:INVALID_HANDLE)
         set_fail_state("FeliciaClan JBMenu nVault acilamadi.");
     DonateLoadHistoryCounter();
     RaffleLoadAll();
@@ -1135,12 +1135,12 @@ public plugin_end()
             SavePlayer(id);
     }
 
-    if(g_iVault != INVALID_HANDLE)
+    if(g_iVault != Vault:INVALID_HANDLE)
         nvault_close(g_iVault);
-    if(g_aSoundMenuNames) ArrayDestroy(g_aSoundMenuNames);
-    if(g_aSoundMenuPaths) ArrayDestroy(g_aSoundMenuPaths);
-    if(g_aSoundMenuPrices) ArrayDestroy(g_aSoundMenuPrices);
-    if(g_aSoundMenuReady) ArrayDestroy(g_aSoundMenuReady);
+    if(g_aSoundMenuNames != Invalid_Array) ArrayDestroy(g_aSoundMenuNames);
+    if(g_aSoundMenuPaths != Invalid_Array) ArrayDestroy(g_aSoundMenuPaths);
+    if(g_aSoundMenuPrices != Invalid_Array) ArrayDestroy(g_aSoundMenuPrices);
+    if(g_aSoundMenuReady != Invalid_Array) ArrayDestroy(g_aSoundMenuReady);
 }
 
 // ============================================================
@@ -1435,7 +1435,7 @@ LoadPlayer(id)
 
 SavePlayer(id)
 {
-    if(g_iUID[id] <= 0 || g_iVault == INVALID_HANDLE)
+    if(g_iUID[id] <= 0 || g_iVault == Vault:INVALID_HANDLE)
         return;
 
     // TL kaydi INI'deki TL_MAX_KAYIT ile sinirlanabilir.
@@ -1503,7 +1503,7 @@ SavePlayer(id)
 
 UIDGetInt(uid, const suffix[], defaultValue)
 {
-    if(g_iVault == INVALID_HANDLE || uid <= 0)
+    if(g_iVault == Vault:INVALID_HANDLE || uid <= 0)
         return defaultValue;
 
     new key[96], data[32];
@@ -1517,7 +1517,7 @@ UIDGetInt(uid, const suffix[], defaultValue)
 
 UIDSetInt(uid, const suffix[], value)
 {
-    if(g_iVault == INVALID_HANDLE || uid <= 0)
+    if(g_iVault == Vault:INVALID_HANDLE || uid <= 0)
         return;
 
     new key[96], data[32];
@@ -1996,7 +1996,7 @@ DonateCurrencyName(currency, output[], outputLen)
 
 DonateLoadHistoryCounter()
 {
-    if(g_iVault == INVALID_HANDLE) return;
+    if(g_iVault == Vault:INVALID_HANDLE) return;
     new value[32];
     g_iDonateHistorySerial = nvault_get(g_iVault, "DONATE_HISTORY_COUNT", value, charsmax(value))
         ? max(0, str_to_num(value)) : 0;
@@ -2221,7 +2221,7 @@ public EventDonateSetFOV(id)
 
 DonateHistorySave(id, amount, currency, const donorName[], const message[])
 {
-    if(g_iVault == INVALID_HANDLE) return;
+    if(g_iVault == Vault:INVALID_HANDLE) return;
 
     g_iDonateHistorySerial++;
     new slot = (g_iDonateHistorySerial - 1) % DONATE_HISTORY_LIMIT;
@@ -2256,7 +2256,7 @@ DonateHistorySave(id, amount, currency, const donorName[], const message[])
 DonateHistoryRead(serial, const field[], output[], outputLen)
 {
     output[0] = 0;
-    if(g_iVault == INVALID_HANDLE || serial < 1 || serial > g_iDonateHistorySerial) return;
+    if(g_iVault == Vault:INVALID_HANDLE || serial < 1 || serial > g_iDonateHistorySerial) return;
 
     new slot = (serial - 1) % DONATE_HISTORY_LIMIT;
     new key[96];
@@ -3042,7 +3042,7 @@ stock RaffleMakeKey(raffleId, const field[], key[], keyLen)
 }
 stock RaffleReadInt(raffleId, const field[], defaultValue)
 {
-    if(g_iVault == INVALID_HANDLE) return defaultValue;
+    if(g_iVault == Vault:INVALID_HANDLE) return defaultValue;
     new key[96], value[32];
     RaffleMakeKey(raffleId, field, key, charsmax(key));
     if(!nvault_get(g_iVault, key, value, charsmax(value))) return defaultValue;
@@ -3050,7 +3050,7 @@ stock RaffleReadInt(raffleId, const field[], defaultValue)
 }
 stock RaffleWriteInt(raffleId, const field[], value)
 {
-    if(g_iVault == INVALID_HANDLE) return;
+    if(g_iVault == Vault:INVALID_HANDLE) return;
     new key[96], data[32];
     RaffleMakeKey(raffleId, field, key, charsmax(key));
     num_to_str(value, data, charsmax(data));
@@ -3059,14 +3059,14 @@ stock RaffleWriteInt(raffleId, const field[], value)
 stock RaffleReadString(raffleId, const field[], output[], outputLen)
 {
     output[0] = 0;
-    if(g_iVault == INVALID_HANDLE) return;
+    if(g_iVault == Vault:INVALID_HANDLE) return;
     new key[96];
     RaffleMakeKey(raffleId, field, key, charsmax(key));
     nvault_get(g_iVault, key, output, outputLen);
 }
 stock RaffleWriteString(raffleId, const field[], const value[])
 {
-    if(g_iVault == INVALID_HANDLE) return;
+    if(g_iVault == Vault:INVALID_HANDLE) return;
     new key[96];
     RaffleMakeKey(raffleId, field, key, charsmax(key));
     nvault_set(g_iVault, key, value);
@@ -3108,7 +3108,7 @@ stock RaffleSaveOne(raffleId)
 }
 stock RaffleLoadAll()
 {
-    if(g_iVault == INVALID_HANDLE) return;
+    if(g_iVault == Vault:INVALID_HANDLE) return;
     new countData[16];
     g_iRaffleCount = nvault_get(g_iVault, "FC_RAFFLE_COUNT", countData, charsmax(countData))
         ? clamp(str_to_num(countData), 0, FC_RAFFLE_MAX) : 0;
