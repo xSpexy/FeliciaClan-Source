@@ -611,6 +611,8 @@ new const SOUND_MENU_INI[]="addons/amxmodx/configs/FeliciaClan/Ses_Menu.ini";
 #define DONATE_MESSAGE_LEN 127
 #define TASK_DONATE_SPRITE 779000
 #define TASK_DONATE_REFRESH 779100
+#define TASK_DONATE_HUD_REFRESH 779200
+#define TASK_DONATE_HUD_CLEAR 779300
 #define DONATE_SPRITE_FRAME_COUNT 8
 
 enum _:DonateCurrencyType
@@ -625,24 +627,22 @@ new g_iDonateAmount[33];
 new g_szDonateMessage[33][DONATE_MESSAGE_LEN + 1];
 new bool:g_bDonateUsedRound[33];
 new bool:g_bDonateSpriteActive[33];
-new bool:g_bDonateSpriteSending[33];
 new g_iDonateSpriteCurrency[33];
 new g_iDonateSpriteTier[33];
 new g_iDonateHistorySerial;
 new g_iDonateHudSync;
 new g_iDonateMessageHudSync;
 new g_iDonateAmountHudSync;
-new g_iDonateMsgWeaponList;
-new g_iDonateMsgCurWeapon;
-new g_iDonateMsgSetFov;
+new g_szDonateHudDonor[33][32];
+new g_szDonateHudAmount[33][64];
+new g_szDonateHudMessage[33][DONATE_MESSAGE_LEN + 1];
 
 new g_iDonateTierFirstMax[DONATE_CURRENCY_COUNT];
 new g_iDonateTierSecondMax[DONATE_CURRENCY_COUNT];
 new g_iDonateMaxAmount[DONATE_CURRENCY_COUNT];
 new g_szDonateSpriteName[DONATE_CURRENCY_COUNT][3][96];
 new g_szDonateSoundName[DONATE_CURRENCY_COUNT][3][96];
-new g_szDonateWeaponName[DONATE_CURRENCY_COUNT][3][32];
-new g_szDonateWeaponFrameName[DONATE_CURRENCY_COUNT][3][DONATE_SPRITE_FRAME_COUNT * 32];
+new g_iDonateSpriteModelIndex[DONATE_CURRENCY_COUNT][3][DONATE_SPRITE_FRAME_COUNT];
 new bool:g_bDonateSpriteReady[DONATE_CURRENCY_COUNT][3];
 new bool:g_bDonateSpriteAnimated[DONATE_CURRENCY_COUNT][3];
 new bool:g_bDonateSoundReady[DONATE_CURRENCY_COUNT][3];
@@ -1109,12 +1109,7 @@ public plugin_init()
     register_logevent("EventRoundStart", 2, "1=Round_Start");
     register_logevent("EventRoundEnd", 2, "1=Round_End");
     register_event("TeamInfo", "EventCosmeticTeamInfo", "a");
-    register_event("CurWeapon", "EventDonateCurWeapon", "be", "1=1");
-    register_event("SetFOV", "EventDonateSetFOV", "be");
 
-    g_iDonateMsgWeaponList = get_user_msgid("WeaponList");
-    g_iDonateMsgCurWeapon = get_user_msgid("CurWeapon");
-    g_iDonateMsgSetFov = get_user_msgid("SetFOV");
     g_iDonateHudSync = CreateHudSyncObj();
     g_iDonateMessageHudSync = CreateHudSyncObj();
     g_iDonateAmountHudSync = CreateHudSyncObj();
@@ -1182,8 +1177,9 @@ public client_disconnected(id)
     remove_task(PLAY_REWARD_TASK + id);
     remove_task(id + TASK_DONATE_SPRITE);
     remove_task(id + TASK_DONATE_REFRESH);
+    remove_task(id + TASK_DONATE_HUD_REFRESH);
+    remove_task(id + TASK_DONATE_HUD_CLEAR);
     g_bDonateSpriteActive[id] = false;
-    g_bDonateSpriteSending[id] = false;
     g_bDonateUsedRound[id] = false;
     g_iPlayRewardMinutes[id] = 0;
     StopPreview(id,false);
@@ -1315,8 +1311,9 @@ ResetRuntime(id)
     g_szDonateMessage[id][0] = 0;
     remove_task(id + TASK_DONATE_SPRITE);
     remove_task(id + TASK_DONATE_REFRESH);
+    remove_task(id + TASK_DONATE_HUD_REFRESH);
+    remove_task(id + TASK_DONATE_HUD_CLEAR);
     g_bDonateSpriteActive[id] = false;
-    g_bDonateSpriteSending[id] = false;
     g_iTLSpent[id]=g_iCoinEarned[id]=g_iCoinSpent[id]=g_iExchangeRemainder[id]=0;
     g_iHPBought[id]=g_iBonusDailyNext[id]=g_iBonusPlayStamp[id]=0;g_bBonusRound[id]=false;
     g_iPreviewCos[id]=-1;g_iPreviewUID[id]=g_iPreviewCamera[id]=g_iPreviewProp[id]=0;g_iPreviewPose[id]=-1;g_flPreviewPoseStart[id]=0.0;g_bDetailHud[id]=false;g_iDetailStamp[id]=-1;
@@ -2050,18 +2047,13 @@ DonateLoadHistoryCounter()
 DonatePrecacheMedia()
 {
     new key[64], path[192], spriteName[96], soundName[96], prefix[8];
-    new frameSpriteName[128], framePath[192], frameWeaponName[32];
+    new frameSpriteName[128], framePath[192];
     new bool:allFramesReady;
-    new const weaponNames[DONATE_CURRENCY_COUNT][3][32] =
-    {
-        { "weapon_fcdonate_tl1", "weapon_fcdonate_tl2", "weapon_fcdonate_tl3" },
-        { "weapon_fcdonate_coin1", "weapon_fcdonate_coin2", "weapon_fcdonate_coin3" }
-    };
+    new modelIndex;
 
     for(new currency = 0; currency < DONATE_CURRENCY_COUNT; currency++)
     {
         copy(prefix, charsmax(prefix), currency == DONATE_CURRENCY_COIN ? "COIN" : "TL");
-
         formatex(key, charsmax(key), "DONATE_%s_TIER1_MAX", prefix);
         g_iDonateTierFirstMax[currency] = max(0, DonateCfgInt(key, 10));
         formatex(key, charsmax(key), "DONATE_%s_TIER2_MAX", prefix);
@@ -2071,30 +2063,28 @@ DonatePrecacheMedia()
 
         for(new tier = 0; tier < 3; tier++)
         {
-            copy(g_szDonateWeaponName[currency][tier], charsmax(g_szDonateWeaponName[][]), weaponNames[currency][tier]);
-
             formatex(key, charsmax(key), "DONATE_%s_TIER%d_SPRITE", prefix, tier + 1);
             DonateCfgStr(key, spriteName, charsmax(spriteName), "FeliciaClan/donate_money");
             copy(g_szDonateSpriteName[currency][tier], charsmax(g_szDonateSpriteName[][]), spriteName);
 
-            // HUD animasyonu: ayni weapon id icin farkli kare sprite dosyalari sirayla gonderilir.
             allFramesReady = true;
             for(new frame = 0; frame < DONATE_SPRITE_FRAME_COUNT; frame++)
             {
                 formatex(frameSpriteName, charsmax(frameSpriteName), "%s_%d", spriteName, frame);
                 formatex(framePath, charsmax(framePath), "sprites/%s.spr", frameSpriteName);
-                formatex(frameWeaponName, charsmax(frameWeaponName), "weapon_fcdonate_%s%d_f%d",
-                    currency == DONATE_CURRENCY_COIN ? "coin" : "tl", tier + 1, frame);
-                copy(g_szDonateWeaponFrameName[currency][tier][frame * 32],
-                    31, frameWeaponName);
-
-                if(!file_exists(framePath)
-                    || !DonateWriteWeaponDefinition(frameWeaponName, frameSpriteName))
+                if(!file_exists(framePath))
                 {
                     allFramesReady = false;
                     break;
                 }
-                precache_generic(framePath);
+
+                modelIndex = precache_model(framePath);
+                if(modelIndex <= 0)
+                {
+                    allFramesReady = false;
+                    break;
+                }
+                g_iDonateSpriteModelIndex[currency][tier][frame] = modelIndex;
             }
 
             if(allFramesReady)
@@ -2104,21 +2094,22 @@ DonatePrecacheMedia()
             }
             else
             {
-                // Ozel sprite yolu kullaniliyorsa eski tek-kare davranisina geri don.
                 formatex(path, charsmax(path), "sprites/%s.spr", spriteName);
-                if(file_exists(path)
-                    && DonateWriteWeaponDefinition(g_szDonateWeaponName[currency][tier], spriteName))
+                if(file_exists(path))
                 {
-                    precache_generic(path);
-                    g_bDonateSpriteReady[currency][tier] = true;
-                    g_bDonateSpriteAnimated[currency][tier] = false;
+                    modelIndex = precache_model(path);
+                    if(modelIndex > 0)
+                    {
+                        g_iDonateSpriteModelIndex[currency][tier][0] = modelIndex;
+                        g_bDonateSpriteReady[currency][tier] = true;
+                        g_bDonateSpriteAnimated[currency][tier] = false;
+                    }
                 }
             }
 
             formatex(key, charsmax(key), "DONATE_%s_TIER%d_SOUND", prefix, tier + 1);
             DonateCfgStr(key, soundName, charsmax(soundName), "FeliciaClan/donate_money.wav");
             copy(g_szDonateSoundName[currency][tier], charsmax(g_szDonateSoundName[][]), soundName);
-
             formatex(path, charsmax(path), "sound/%s", soundName);
             if(soundName[0] && file_exists(path))
             {
@@ -2129,27 +2120,6 @@ DonatePrecacheMedia()
     }
 }
 
-// GoldSrc weapon HUD definition: the sprite is drawn by the client's
-// crosshair renderer at a fixed upper-right screen offset. Weapon ID 2 is
-// unused by Counter-Strike and is only sent to the client during the notice.
-bool:DonateWriteWeaponDefinition(const weaponName[], const spriteName[])
-{
-    new path[128];
-    formatex(path, charsmax(path), "sprites/%s.txt", weaponName);
-
-    new file = fopen(path, "wt");
-    if(!file) return false;
-
-    fputs(file, "2^n");
-    // SPR'yi ekranin sag ust bolgesine yerlestir.
-    fprintf(file, "crosshair 320 %s 215 -135 128 80^n", spriteName);
-    fprintf(file, "crosshair 640 %s 430 -270 128 80^n", spriteName);
-    fclose(file);
-
-    precache_generic(path);
-    return true;
-}
-
 DonateGetTier(currency, amount)
 {
     if(amount <= g_iDonateTierFirstMax[currency]) return 0;
@@ -2157,94 +2127,57 @@ DonateGetTier(currency, amount)
     return 2;
 }
 
-DonateGetFov(id)
-{
-    new Float:fov;
-    pev(id, pev_fov, fov);
-    if(fov < 1.0) return 90;
-    return clamp(floatround(fov), 1, 180);
-}
-
-DonateSendFov(id, fov)
-{
-    if(!g_iDonateMsgSetFov) return;
-    message_begin(MSG_ONE, g_iDonateMsgSetFov, _, id);
-    write_byte(fov);
-    message_end();
-}
-
 DonateSendSprite(id)
 {
-    new currency, tier, fov, frame, weaponName[32];
-    if(id < 1 || id > MaxClients || !is_user_connected(id)
-        || !g_bDonateSpriteActive[id] || !g_bDonateMediaEnabled[id]) return;
+    if(id < 1 || id > MaxClients || !is_user_connected(id) || !is_user_alive(id)
+        || !g_bDonateSpriteActive[id] || !g_bDonateMediaEnabled[id])
+        return;
 
-    currency = g_iDonateSpriteCurrency[id];
-    tier = g_iDonateSpriteTier[id];
+    new currency = g_iDonateSpriteCurrency[id];
+    new tier = g_iDonateSpriteTier[id];
     if(currency < 0 || currency >= DONATE_CURRENCY_COUNT || tier < 0 || tier > 2
-        || !g_bDonateSpriteReady[currency][tier] || !is_user_alive(id)) return;
+        || !g_bDonateSpriteReady[currency][tier])
+        return;
 
-    fov = DonateGetFov(id);
-    // Do not override a live sniper/AUG/SG552 scope. The SetFOV hook
-    // will redraw the sprite when the player returns to normal FOV.
-    if(fov < 90) return;
-
-    g_bDonateSpriteSending[id] = true;
-
+    new frame = 0;
     if(g_bDonateSpriteAnimated[currency][tier])
     {
         frame = g_iDonateSpriteFrame[id];
-        copy(weaponName, charsmax(weaponName),
-            g_szDonateWeaponFrameName[currency][tier][frame * 32]);
         g_iDonateSpriteFrame[id] = (frame + 1) % DONATE_SPRITE_FRAME_COUNT;
     }
-    else
+
+    new modelIndex = g_iDonateSpriteModelIndex[currency][tier][frame];
+    if(modelIndex <= 0) return;
+
+    // Kamera onune gore sag-ust konum: sprite oyuncunun bakisiyla birlikte hareket eder.
+    new Float:origin[3], Float:viewOfs[3], Float:angles[3];
+    new Float:forward[3], Float:right[3], Float:up[3], Float:drawPos[3];
+    pev(id, pev_origin, origin);
+    pev(id, pev_view_ofs, viewOfs);
+    pev(id, pev_v_angle, angles);
+    origin[0] += viewOfs[0];
+    origin[1] += viewOfs[1];
+    origin[2] += viewOfs[2];
+
+    angle_vector(angles, ANGLEVECTOR_FORWARD, forward);
+    angle_vector(angles, ANGLEVECTOR_RIGHT, right);
+    angle_vector(angles, ANGLEVECTOR_UP, up);
+
+    for(new axis = 0; axis < 3; axis++)
     {
-        copy(weaponName, charsmax(weaponName), g_szDonateWeaponName[currency][tier]);
+        drawPos[axis] = origin[axis] + forward[axis] * 64.0
+            + right[axis] * 43.0 + up[axis] * 32.0;
     }
 
-    message_begin(MSG_ONE, g_iDonateMsgWeaponList, _, id);
-    write_string(weaponName);
-    write_byte(-1);
-    write_byte(0);
-    write_byte(-1);
-    write_byte(0);
-    write_byte(0);
-    write_byte(11);
-    write_byte(2);
-    write_byte(0);
-    message_end();
-
-    DonateSendFov(id, 89);
-
-    message_begin(MSG_ONE, g_iDonateMsgCurWeapon, _, id);
+    message_begin(MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, _, id);
+    write_byte(TE_SPRITE);
+    write_coord(floatround(drawPos[0]));
+    write_coord(floatround(drawPos[1]));
+    write_coord(floatround(drawPos[2]));
+    write_short(modelIndex);
     write_byte(1);
-    write_byte(2);
-    write_byte(0);
+    write_byte(255);
     message_end();
-
-    DonateSendFov(id, fov);
-    g_bDonateSpriteSending[id] = false;
-}
-
-DonateRestoreWeaponHud(id)
-{
-    if(id < 1 || id > MaxClients || !is_user_connected(id)) return;
-
-    new clip, backpack, weapon = get_user_weapon(id, clip, backpack);
-    new fov = DonateGetFov(id);
-
-    g_bDonateSpriteSending[id] = true;
-    if(weapon > 0 && g_iDonateMsgCurWeapon)
-    {
-        message_begin(MSG_ONE, g_iDonateMsgCurWeapon, _, id);
-        write_byte(1);
-        write_byte(weapon);
-        write_byte(clip);
-        message_end();
-    }
-    DonateSendFov(id, fov);
-    g_bDonateSpriteSending[id] = false;
 }
 
 DonateClearSprite(id)
@@ -2252,28 +2185,27 @@ DonateClearSprite(id)
     if(id < 1 || id > MaxClients) return;
     remove_task(id + TASK_DONATE_SPRITE);
     remove_task(id + TASK_DONATE_REFRESH);
-
-    new bool:wasActive = g_bDonateSpriteActive[id];
+    remove_task(id + TASK_DONATE_HUD_REFRESH);
+    remove_task(id + TASK_DONATE_HUD_CLEAR);
     g_bDonateSpriteActive[id] = false;
-    if(wasActive) DonateRestoreWeaponHud(id);
 }
 
 DonateShowSprite(id, currency, tier)
 {
-    if(id < 1 || id > MaxClients || !is_user_connected(id)
-        || !g_bDonateMediaEnabled[id]) return;
+    if(id < 1 || id > MaxClients || !is_user_connected(id) || !g_bDonateMediaEnabled[id])
+        return;
     if(!g_bDonateSpriteReady[currency][tier]) return;
 
     g_iDonateSpriteCurrency[id] = currency;
     g_iDonateSpriteTier[id] = tier;
     g_iDonateSpriteFrame[id] = 0;
     g_bDonateSpriteActive[id] = true;
-
     remove_task(id + TASK_DONATE_SPRITE);
     remove_task(id + TASK_DONATE_REFRESH);
+
     DonateSendSprite(id);
-    if(g_bDonateSpriteAnimated[currency][tier])
-        set_task(0.10, "TaskDonateRefreshSprite", id + TASK_DONATE_REFRESH, "", 0, "b");
+    // TE_SPRITE tek atimlik oldugundan tum karelerde aralikli yeniden gonder.
+    set_task(0.10, "TaskDonateRefreshSprite", id + TASK_DONATE_REFRESH, "", 0, "b");
     set_task(g_flDonateDisplayTime, "TaskDonateClearSprite", id + TASK_DONATE_SPRITE);
 }
 
@@ -2291,29 +2223,58 @@ public TaskDonateRefreshSprite(taskid)
     DonateSendSprite(id);
 }
 
-public EventDonateCurWeapon(id)
+DonateStartHud(target, const donorName[], const amountText[], const message[])
 {
-    if(id < 1 || id > MaxClients || !g_bDonateSpriteActive[id]
-        || g_bDonateSpriteSending[id] || !g_bDonateMediaEnabled[id]) return;
-    if(read_data(2) == 2) return;
-    DonateSendSprite(id);
+    if(target < 1 || target > MaxClients || !is_user_connected(target))
+        return;
+
+    copy(g_szDonateHudDonor[target], charsmax(g_szDonateHudDonor[]), donorName);
+    copy(g_szDonateHudAmount[target], charsmax(g_szDonateHudAmount[]), amountText);
+    copy(g_szDonateHudMessage[target], charsmax(g_szDonateHudMessage[]), message);
+
+    remove_task(target + TASK_DONATE_HUD_REFRESH);
+    remove_task(target + TASK_DONATE_HUD_CLEAR);
+    TaskDonateHudRefresh(target + TASK_DONATE_HUD_REFRESH);
+    set_task(0.40, "TaskDonateHudRefresh", target + TASK_DONATE_HUD_REFRESH, "", 0, "b");
+    set_task(g_flDonateDisplayTime, "TaskDonateHudClear", target + TASK_DONATE_HUD_CLEAR);
 }
 
-public EventDonateSetFOV(id)
+public TaskDonateHudRefresh(taskid)
 {
-    if(id < 1 || id > MaxClients || !g_bDonateSpriteActive[id]
-        || g_bDonateSpriteSending[id] || !g_bDonateMediaEnabled[id]) return;
-
-    remove_task(id + TASK_DONATE_REFRESH);
-    if(read_data(1) >= 90)
+    new target = taskid - TASK_DONATE_HUD_REFRESH;
+    if(target < 1 || target > MaxClients || !is_user_connected(target))
     {
-        new currency = g_iDonateSpriteCurrency[id];
-        new tier = g_iDonateSpriteTier[id];
-        if(g_bDonateSpriteAnimated[currency][tier])
-            set_task(0.10, "TaskDonateRefreshSprite", id + TASK_DONATE_REFRESH, "", 0, "b");
-        else
-            set_task(0.05, "TaskDonateRefreshSprite", id + TASK_DONATE_REFRESH);
+        remove_task(taskid);
+        return;
     }
+
+    set_hudmessage(255, 255, 255, 0.73, 0.165, 0, 0.0, 0.65, 0.0, 0.05, -1);
+    ShowSyncHudMsg(target, g_iDonateHudSync, "%s", g_szDonateHudDonor[target]);
+
+    set_hudmessage(255, 55, 55, 0.73, 0.200, 0, 0.0, 0.65, 0.0, 0.05, -1);
+    ShowSyncHudMsg(target, g_iDonateAmountHudSync, "%s", g_szDonateHudAmount[target]);
+
+    set_hudmessage(210, 210, 255, -1.0, 0.395, 0, 0.0, 0.65, 0.0, 0.05, 1);
+    ShowSyncHudMsg(target, g_iDonateMessageHudSync, "%s", g_szDonateHudMessage[target]);
+}
+
+public TaskDonateHudClear(taskid)
+{
+    new target = taskid - TASK_DONATE_HUD_CLEAR;
+    if(target < 1 || target > MaxClients)
+        return;
+
+    remove_task(target + TASK_DONATE_HUD_REFRESH);
+    if(is_user_connected(target))
+    {
+        ClearSyncHud(target, g_iDonateHudSync);
+        ClearSyncHud(target, g_iDonateAmountHudSync);
+        ClearSyncHud(target, g_iDonateMessageHudSync);
+    }
+
+    g_szDonateHudDonor[target][0] = 0;
+    g_szDonateHudAmount[target][0] = 0;
+    g_szDonateHudMessage[target][0] = 0;
 }
 
 DonateHistorySave(id, amount, currency, const donorName[], const message[])
@@ -2695,22 +2656,13 @@ DonateBroadcastMedia(const donorName[], const message[], amount, currency, tier)
 {
     new currencyName[12], amountText[64];
     DonateCurrencyName(currency, currencyName, charsmax(currencyName));
-    formatex(amountText, charsmax(amountText), "%d %s Bağışlandı", amount, currencyName);
+    formatex(amountText, charsmax(amountText), "%d %s Gönderdi", amount, currencyName);
 
     for(new target = 1; target <= MaxClients; target++)
     {
         if(!is_user_connected(target)) continue;
 
-        // Sag ustteki SPR'nin altinda gonderen adi ve bagis miktari.
-        set_hudmessage(255, 255, 255, 0.73, 0.165, 0, 0.0, g_flDonateDisplayTime, 0.05, 0.1, -1);
-        ShowSyncHudMsg(target, g_iDonateHudSync, "%s", donorName);
-        set_hudmessage(255, 55, 55, 0.73, 0.200, 0, 0.0, g_flDonateDisplayTime, 0.05, 0.1, -1);
-        ShowSyncHudMsg(target, g_iDonateAmountHudSync, "%s", amountText);
-
-        // Bagis mesaji kasa animasyonu gibi ekran ortasinda, crosshair'in biraz ustunde.
-        set_hudmessage(210, 210, 255, -1.0, 0.395, 0, 0.0, g_flDonateDisplayTime, 0.05, 0.1, 1);
-        ShowSyncHudMsg(target, g_iDonateMessageHudSync, "%s", message);
-
+        DonateStartHud(target, donorName, amountText, message);
         if(!g_bDonateMediaEnabled[target]) continue;
 
         DonateShowSprite(target, currency, tier);
