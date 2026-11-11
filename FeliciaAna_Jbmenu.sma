@@ -643,7 +643,6 @@ new g_szDonateHudMessage[33][DONATE_MESSAGE_LEN + 1];
 new g_iDonateTierFirstMax[DONATE_CURRENCY_COUNT];
 new g_iDonateTierSecondMax[DONATE_CURRENCY_COUNT];
 new g_iDonateMaxAmount[DONATE_CURRENCY_COUNT];
-new g_szDonateSpriteName[DONATE_CURRENCY_COUNT][3][96];
 new g_szDonateSoundName[DONATE_CURRENCY_COUNT][3][96];
 #define DONATE_SPRITE_FRAME_COUNT 8
 new g_szDonateWeaponFrameName[DONATE_CURRENCY_COUNT][3][DONATE_SPRITE_FRAME_COUNT * 32];
