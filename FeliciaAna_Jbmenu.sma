@@ -9977,7 +9977,7 @@ PlayKillEffect(attacker, victim)
         if(!is_user_connected(target) || !g_bDeathEffectsVisible[target])
             continue;
 
-        message_begin(MSG_ONE_UNRELIABLE,SVC_TEMPENTITY,origin,target);
+        message_begin(MSG_ONE_UNRELIABLE,SVC_TEMPENTITY,_,target);
         write_byte(TE_EXPLOSION);
         write_coord_f(origin[0]);
         write_coord_f(origin[1]);
