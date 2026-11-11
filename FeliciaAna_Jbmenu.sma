@@ -2709,12 +2709,12 @@ ShowDonateHistoryMenu(id)
         return;
     }
 
-    new menu = FC_MenuCreate("\${c}Geçmiş Bağışlar", "H_DonateHistory");
+    new menu = FC_MenuCreate("\wGeçmiş Bağışlar", "H_DonateHistory");
     new count = min(g_iDonateHistorySerial, 20);
     new line[160], info[16], donor[40], amountText[24], currencyText[12], serial;
 
     if(!count)
-        FC_MenuAddItem(menu, "\${c}Henüz bağış kaydı yok", "0");
+        FC_MenuAddItem(menu, "\wHenüz bağış kaydı yok", "0");
 
     for(new i; i < count; i++)
     {
@@ -2725,13 +2725,13 @@ ShowDonateHistoryMenu(id)
         new currency = clamp(str_to_num(currencyText), 0, DONATE_CURRENCY_COUNT - 1);
         new currencyName[12];
         DonateCurrencyName(currency, currencyName, charsmax(currencyName));
-        formatex(line, charsmax(line), "\${c}%s \${c}- %s %s", donor, amountText, currencyName);
+        formatex(line, charsmax(line), "\w%s \w- %s %s", donor, amountText, currencyName);
         num_to_str(serial, info, charsmax(info));
         FC_MenuAddItem(menu, line, info);
     }
 
     if(g_iDonateHistorySerial > 0)
-        FC_MenuAddItem(menu, "\${c}Bağış Geçmişini Temizle", "-1");
+        FC_MenuAddItem(menu, "\wBağış Geçmişini Temizle", "-1");
 
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
@@ -2770,9 +2770,9 @@ ShowDonateHistoryClearConfirm(id)
 {
     if(!HasRole(id, ROLE_MANAGER)) return;
 
-    new menu = FC_MenuCreate("\${c}Bağış geçmişinin tamamı silinsin mi?", "H_DonateHistoryClearConfirm");
-    FC_MenuAddItem(menu, "\${c}Evet, geçmişi temizle", "1");
-    FC_MenuAddItem(menu, "\${c}Hayır, geri dön", "2");
+    new menu = FC_MenuCreate("\wBağış geçmişinin tamamı silinsin mi?", "H_DonateHistoryClearConfirm");
+    FC_MenuAddItem(menu, "\wEvet, geçmişi temizle", "1");
+    FC_MenuAddItem(menu, "\wHayır, geri dön", "2");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
 }
@@ -4030,13 +4030,13 @@ RaffleShowManager(id)
             totalCoin += g_iRaffleParticipantCount[i] * g_iRaffleFeeAmount[i];
     }
     new title[256];
-    formatex(title, charsmax(title), "\${c}Yonetici Cekilis Paneli^n\${c}Toplam: \${c}%d \${c}| Aktif: \${c}%d \${c}| Tamamlanan: \${c}%d^n\${c}Toplanan: \${c}%d TL \${c}/ \${c}%d Coin",
+    formatex(title, charsmax(title), "\wYonetici Cekilis Paneli^n\wToplam: \w%d \w| Aktif: \w%d \w| Tamamlanan: \w%d^n\wToplanan: \w%d TL \w/ \w%d Coin",
         g_iRaffleCount, active, completed, totalTL, totalCoin);
     new menu = FC_MenuCreate(title, "H_RaffleManager");
-    FC_MenuAddItem(menu, "\${c}Cekilis Olustur", "1");
-    FC_MenuAddItem(menu, "\${c}Cekilislerim", "2");
-    FC_MenuAddItem(menu, "\${c}Katilim Listeleri", "3");
-    FC_MenuAddItem(menu, "\${c}Eski Cekilisleri Temizle", "4");
+    FC_MenuAddItem(menu, "\wCekilis Olustur", "1");
+    FC_MenuAddItem(menu, "\wCekilislerim", "2");
+    FC_MenuAddItem(menu, "\wKatilim Listeleri", "3");
+    FC_MenuAddItem(menu, "\wEski Cekilisleri Temizle", "4");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
 }
@@ -4071,9 +4071,9 @@ RaffleShowClearOldConfirm(id)
 {
     if(!RaffleRequireManager(id)) return;
 
-    new menu = FC_MenuCreate("\${c}Tamamlanmis eski cekilisler silinsin mi?^n\${c}Aktif cekilisler ve teslim edilmemis oduller korunur.", "H_RaffleClearOldConfirm");
-    FC_MenuAddItem(menu, "\${c}Evet, eski cekilisleri temizle", "1");
-    FC_MenuAddItem(menu, "\${c}Hayir, geri don", "2");
+    new menu = FC_MenuCreate("\wTamamlanmis eski cekilisler silinsin mi?^n\wAktif cekilisler ve teslim edilmemis oduller korunur.", "H_RaffleClearOldConfirm");
+    FC_MenuAddItem(menu, "\wEvet, eski cekilisleri temizle", "1");
+    FC_MenuAddItem(menu, "\wHayir, geri don", "2");
     FC_MenuSetProp(menu, MPROP_EXITNAME, "Geri");
     menu_display(id, menu);
 }
